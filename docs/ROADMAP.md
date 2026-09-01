@@ -118,10 +118,22 @@ Remaining on this track:
 - Add richer per-destination official feeds (times, fees, contact) from
   authorities where such single-source facts exist.
 
-## 4. FairPrice module
+## 4. FairPrice module — shipped (M6, read side)
 
-- Display `price_records` grouped by category, honouring the price-type rules.
-- Verification workflow for `USER_REPORT` → trusted records.
+Public catalog over `price_records`, reading only records a reviewer has
+promoted to `VERIFIED`/`LIVE` (joining the linked source record + data source so
+every record carries its type, validity window, source organization, reliability
+and freshness — see `src/lib/catalog/fairprice.ts`). `/fairprice` filters by
+category and renders `OFFICIAL`/`LIVE_QUOTE`/`RECENT_OBSERVATION`/
+`TYPICAL_RANGE` labelled prices; estimates/forecasts are kept in
+`price_forecasts` and never shown as current facts.
+
+Remaining on this track:
+
+- Capture flow: community price reports (`USER_REPORT`) submitted by logged-in
+  users into review, then promoted by a reviewer (like the ingestion/coordinate
+  review paths) — routed through `source_records`/`data_submissions`.
+- Verification workflow for the `USER_REPORT` → trusted promotion.
 
 ## 5. Crowd intelligence
 

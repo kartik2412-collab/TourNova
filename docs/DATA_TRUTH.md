@@ -80,6 +80,12 @@ is a **claim**, never a trust grant — confirming it does not activate a source
 - `ESTIMATE` = model estimate, always labelled, never presented as current price.
 - `USER_REPORT` = community-reported, flagged, subject to verification.
 
+The public `/fairprice` page exposes only records whose reviewer-promoted status
+is `VERIFIED`/`LIVE`; `USER_REPORTED`/`ESTIMATED`/`PREDICTED`/`DEMO` records
+never appear as current facts. (`src/lib/catalog/fairprice.ts` joins each record
+to its source record + data source so the price type, validity window and
+provenance travel with the value.)
+
 ## The verification workflow
 
 Community/unknown data enters through **`data_submissions`** — a captured fact

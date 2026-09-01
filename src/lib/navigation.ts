@@ -50,10 +50,10 @@ export const navModules: NavModule[] = [
   },
   {
     title: "FairPrice",
-    description: "Know the price before you pay.",
+    description: "Sourced, labelled prices for tickets, food, stays and more.",
     href: "/fairprice",
     icon: BadgeIndianRupee,
-    status: "coming-soon",
+    status: "live",
   },
   {
     title: "Crowd",
