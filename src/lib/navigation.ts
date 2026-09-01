@@ -64,10 +64,10 @@ export const navModules: NavModule[] = [
   },
   {
     title: "Nearby",
-    description: "Find what is close to you.",
+    description: "Verified places near you.",
     href: "/nearby",
     icon: MapPin,
-    status: "coming-soon",
+    status: "live",
   },
   {
     title: "Emergency",

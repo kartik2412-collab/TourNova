@@ -144,10 +144,22 @@ Remaining on this track:
   worker (`public/map-sw.js`) stores HTTPS image tiles in a dedicated cache
   (disabled via `NEXT_PUBLIC_MAP_OFFLINE_CACHE=0`). See `.env.example` for the
   required env vars.
-- Remaining: geospatial queries (PostGIS/pgvector) for the Nearby module ("hotels
-  near me", "hospital near destination"); optionally swap the raster renderer for
-  a vector GL layer behind the existing provider abstraction (requires an
-  operator token, e.g. Mapbox GL).
+- Remaining: geospatial queries (PostGIS/pgvector) for the Nearby module's hotel /
+  service layers ("hotels near me", "hospital near destination" — these entity
+  types have no approved coordinates yet, so Nearby currently covers verified
+  destinations only); optionally swap the raster renderer for a vector GL layer
+  behind the existing provider abstraction (requires an operator token, e.g.
+  Mapbox GL).
+
+## 6A. Nearby (range search over approved pins) — shipped (M5)
+
+`/nearby` ships a same-entitiy-class range search: pick a verified destination
+and a radius (5–100 km); the page returns the other verified destinations whose
+APPROVED coordinates fall inside the radius, sorted by straight-line distance
+(`src/lib/geo/distance.ts`, haversine, tested). No distance is computed from a
+guessed or interpolated position, and the page states that road/travel distance
+and hotel/service “near me” layers remain unavailable until coordinates are
+approved. Zero approved pins → honest empty state.
 
 ## 7. AI Assistant (RAG)
 

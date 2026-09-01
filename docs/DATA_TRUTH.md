@@ -238,6 +238,15 @@ from the source", never invented copy; a destination with an `OPEN`
 resolves them. Approving the 437 staged candidates is what populates this
 catalog — there is no auto-publication.
 
+### Milestone 5 — Nearby distances are approved-coordinate math
+
+`/nearby` measures distance only between entities that have an `APPROVED`
+coordinate (`src/lib/geo/distance.ts`, haversine). A radius search returns
+verified destinations inside the radius ordered by straight-line distance; there
+is no estimation of road/travel time from guessed geometry, and hotel /
+transport / emergency "near me" layers do not exist until those entity types
+have approved coordinates.
+
 ## The seed script respects this
 
 `npm run db:seed` inserts **only structural geography** (country/state/districts
