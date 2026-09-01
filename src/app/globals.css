@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/*
+  TourNova design tokens.
+  Travel-forward palette: deep teal/slate primary, warm amber accent.
+  Light and dark themes via CSS variables; Tailwind v4 maps them with @theme.
+*/
+
+:root {
+  --background: #f7faf8;
+  --foreground: #0f172a;
+  --primary: #0f766e;
+  --primary-foreground: #ffffff;
+  --accent: #d97706;
+  --accent-foreground: #ffffff;
+  --muted: #e7ecea;
+  --muted-foreground: #4b5d5a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --border: #d8e0dd;
+  --ring: #0f766e;
+  --destructive: #b91c1c;
+  --success: #15803d;
+  --warning: #b45309;
+  --radius: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b1120;
+    --foreground: #e6edef;
+    --primary: #2dd4bf;
+    --primary-foreground: #062823;
+    --accent: #f59e0b;
+    --accent-foreground: #1a1005;
+    --muted: #16202b;
+    --muted-foreground: #9db0ac;
+    --card: #111827;
+    --card-foreground: #e6edef;
+    --border: #24313d;
+    --ring: #2dd4bf;
+    --destructive: #ef4444;
+    --success: #4ade80;
+    --warning: #fbbf24;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Consistent focus visibility for keyboard users. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Motion preferences: respect reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
