@@ -29,17 +29,17 @@ export interface NavModule {
 export const navModules: NavModule[] = [
   {
     title: "Discover",
-    description: "Explore destinations and attractions.",
+    description: "Verified destinations and attractions.",
     href: "/discover",
     icon: Compass,
-    status: "coming-soon",
+    status: "live",
   },
   {
     title: "Map",
-    description: "Interactive map of places and services.",
+    description: "Interactive map of verified places.",
     href: "/map",
     icon: Map,
-    status: "coming-soon",
+    status: "live",
   },
   {
     title: "Plan",

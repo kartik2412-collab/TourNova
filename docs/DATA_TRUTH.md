@@ -214,6 +214,30 @@ review.
 - Until a destination has an approved candidate, map/nearby screens must show an
   honest empty state — a missing pin, not an invented one.
 
+### Milestone 3D — the map draws only approved candidates
+
+The public map (`/map`) is a feature layer over `coordinate_candidates` with
+`status = APPROVED` whose entity is itself approved for publication. Notifications
+and providers are abstracted behind `src/lib/geo/map-provider.ts` (raster tiles:
+public OSM by default, an operator-set `NEXT_PUBLIC_MAP_TILE_URL`, or a
+key-gated Mapbox provider that is only selected when a token exists). The tile
+images themselves are third-party map data with their own license — the
+`attributionHtml` each provider declares is rendered over the map, and the
+offline service worker (`public/map-sw.js`) caches tiles cache-first for repeat
+offline viewing. A region with zero approved coordinates simply has no pins.
+
+### Milestone 4 — Discover shows only approved destinations
+
+`/discover` and `/discover/[entityId]` read the approved set
+(`ingestion_items.status = APPROVED`) and join it to its source record and data
+source so every card/detail carries provenance (source name, organization,
+reliability, per-record reference URL, collected/verified time, freshness
+class). A source that supplied no description renders "Description unavailable
+from the source", never invented copy; a destination with an `OPEN`
+`source_conflicts` row shows the two values side by side until a reviewer
+resolves them. Approving the 437 staged candidates is what populates this
+catalog — there is no auto-publication.
+
 ## The seed script respects this
 
 `npm run db:seed` inserts **only structural geography** (country/state/districts

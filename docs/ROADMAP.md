@@ -92,11 +92,31 @@ Remaining on this track (requires real admin review + human decisions):
   `REVIEW_VERIFICATIONS` + CSRF for mutations). Tests in
   `src/lib/geo/*.test.ts`.
 
-## 3. Discover module
+## 3. Discover module — shipped (M4)
 
-- List destinations/attractions from the DB (currently seeded structural rows
-  with `UNVAILABLE` optional fields intact).
-- Destination detail pages showing all provenance-aware fields + status badges.
+Public catalog of **only human-approved, sourced destinations**.
+
+- `/discover` lists approved `ingestion_items` (currently 0 — awaiting admin
+  decisions on the 437 staged Gujarat candidates) with search, category/district
+  filters and a facet bar; every card shows its source, verified-at timestamp
+  and freshness class. Conflicting values appear side-by-side, never silently
+  merged.
+- `/discover/[entityId]` shows a destination detail + provenance panel (source
+  name, organization, classification, reliability, reference URL, collected and
+  verified dates, freshness) plus approved coordinates and any open `OPEN`
+  source conflicts. Missing fields render an explicit "Reliable data unavailable"
+  message — no invented copy.
+- Service in `src/lib/catalog/discover.ts`; tests in
+  `src/lib/catalog/discover.test.ts`.
+
+Remaining on this track:
+
+- Approve the 437 PENDING_REVIEW ingestion candidates in `/admin/ingestion`
+  (Approve / Reject / Mark unavailable) to populate the Discover catalog.
+  Publishing verified destinations is an explicit human decision — nothing is
+  auto-published.
+- Add richer per-destination official feeds (times, fees, contact) from
+  authorities where such single-source facts exist.
 
 ## 4. FairPrice module
 
@@ -110,14 +130,24 @@ Remaining on this track (requires real admin review + human decisions):
 - Store results as `crowd_observations` (`AUTHORITATIVE`/`ESTIMATED`/`DEMO`).
 - Forecasting (`crowd_forecasts`) from historical + seasonal + event data.
 
-## 6. Map & Nearby
+## 6. Map, Nearby & offline — map shipped (M3D)
 
-- Map provider abstraction is now prepared (`src/lib/geo/providers.ts` + the
-  candidate-coordinate model). To ship: the map UI (M3D) using approved
-  candidates only, plus geospatial queries (PostGIS/pgvector) for "hotels near
-  me", "hospital near destination", etc.
-- Honest empty states will apply until coordinates have been approved: no
-  marker, no guessed pin.
+- Map UI live (M3D). Provider abstraction lives in `src/lib/geo/map-provider.ts`:
+  raster tile providers (OpenStreetMap by default, an operator-set
+  `NEXT_PUBLIC_MAP_TILE_URL`, key-gated Mapbox raster) with full attribution
+  strings; the `DestinationMap` component is dependency-free (pointer drag /
+  wheel / labeled zoom buttons / reset, grid clustering, keyboard-accessible
+  markers, hard-coded state per the zero-fabrication policy). The `/map` page
+  server component joins approved `coordinate_candidates` to approved
+  `ingestion_items` so every pin represents a verified entity — zero approved
+  pins today produces the honest empty state. An offline tile-cache service
+  worker (`public/map-sw.js`) stores HTTPS image tiles in a dedicated cache
+  (disabled via `NEXT_PUBLIC_MAP_OFFLINE_CACHE=0`). See `.env.example` for the
+  required env vars.
+- Remaining: geospatial queries (PostGIS/pgvector) for the Nearby module ("hotels
+  near me", "hospital near destination"); optionally swap the raster renderer for
+  a vector GL layer behind the existing provider abstraction (requires an
+  operator token, e.g. Mapbox GL).
 
 ## 7. AI Assistant (RAG)
 
