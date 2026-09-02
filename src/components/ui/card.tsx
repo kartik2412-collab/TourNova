@@ -1,17 +1,21 @@
 /**
- * Small UI primitives: Card, Badge, StatusBadge, SectionHeading.
+ * UI primitives: Card, Badge, StatusBadge, SectionHeading.
+ * Enhanced for premium travel aesthetic.
  */
 
 import type { HTMLAttributes, ReactNode } from "react";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
+  interactive?: boolean;
 }
 
-export function Card({ className = "", children, ...rest }: CardProps) {
+export function Card({ className = "", children, interactive = false, ...rest }: CardProps) {
   return (
     <div
-      className={`rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm ${className}`}
+      className={`rounded-xl border border-border bg-card p-6 text-card-foreground shadow-card ${
+        interactive ? "card-interactive cursor-pointer" : ""
+      } ${className}`}
       {...rest}
     >
       {children}
@@ -26,9 +30,9 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 
 const badgeColors: Record<NonNullable<BadgeProps["color"]>, string> = {
   default: "bg-primary/10 text-primary",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  destructive: "bg-destructive/10 text-destructive",
+  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  warning: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  destructive: "bg-red-500/10 text-red-600 dark:text-red-400",
   info: "bg-sky-500/10 text-sky-600 dark:text-sky-300",
   muted: "bg-muted text-muted-foreground",
 };
@@ -46,8 +50,7 @@ export function Badge({ children, color = "default", className = "", ...rest }: 
 
 /**
  * Traveller-ready status badge for data.
- * Mirrors the platform verification vocabulary used across the schema
- * (VERIFIED / LIVE / ESTIMATED / USER_REPORTED / PREDICTED / UNAVAILABLE / DEMO).
+ * Mirrors the platform verification vocabulary used across the schema.
  */
 export function DataStatusBadge({ status }: { status: string }) {
   const normalized = status.toUpperCase();
@@ -71,6 +74,7 @@ interface SectionHeadingProps {
   title: string;
   description?: string;
   align?: "left" | "center";
+  light?: boolean;
 }
 
 export function SectionHeading({
@@ -78,15 +82,34 @@ export function SectionHeading({
   title,
   description,
   align = "left",
+  light = false,
 }: SectionHeadingProps) {
   return (
     <div className={align === "center" ? "text-center" : ""}>
       {eyebrow ? (
-        <p className="text-sm font-semibold uppercase tracking-wider text-accent">{eyebrow}</p>
+        <p
+          className={`text-sm font-semibold uppercase tracking-wider ${
+            light ? "text-amber-300" : "text-accent"
+          }`}
+        >
+          {eyebrow}
+        </p>
       ) : null}
-      <h2 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>
+      <h2
+        className={`mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl ${
+          light ? "text-white" : ""
+        }`}
+      >
+        {title}
+      </h2>
       {description ? (
-        <p className="mt-2 max-w-2xl text-muted-foreground sm:text-lg">{description}</p>
+        <p
+          className={`mt-2 max-w-2xl sm:text-lg ${
+            light ? "text-white/80" : "text-muted-foreground"
+          }`}
+        >
+          {description}
+        </p>
       ) : null}
     </div>
   );

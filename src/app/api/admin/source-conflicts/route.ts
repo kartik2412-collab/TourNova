@@ -10,6 +10,7 @@ import {
   logSecurityEvent,
 } from "@/lib/auth/guards";
 import { permissions } from "@/lib/auth/permissions";
+import { apiLimiter } from "@/lib/auth/rate-limit";
 import { flagSourceConflict, listSourceConflicts } from "@/lib/trust/sources";
 import { flagSourceConflictSchema } from "@/lib/validation";
 
@@ -31,6 +32,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const limited = apiLimiter.check(`flag-conflict:${clientIp(request)}`);
+  if (!limited.allowed) {
+    return jsonError(429, "Too many attempts. Please try again later.");
+  }
+
   let ctx;
   try {
     ctx = await requireApiUser(request, db, permissions.MANAGE_DATA_SOURCES);

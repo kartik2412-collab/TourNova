@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client/api";
 import { Badge } from "@/components/ui/card";
 import { useSession } from "@/lib/use-session";
+import {
+  reviewProgress,
+  isShortcutSuppressed,
+  shortcutForKey,
+  SHORTCUT_HINTS,
+} from "@/lib/ingest/review-speed";
 
 interface RunView {
   id: string;
@@ -64,6 +70,17 @@ const STATUS_TABS = [
   "SKIPPED_DUPLICATE",
 ] as const;
 
+interface ReviewStatsView {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  unavailable: number;
+  skippedDuplicate: number;
+  reviewed: number;
+  openConflicts: number;
+}
+
 function fmtDate(value: string | null | undefined): string {
   if (!value) return "—";
   return new Date(value).toLocaleString();
@@ -78,37 +95,133 @@ function prettyJson(value: Record<string, unknown> | null | undefined): string {
   }
 }
 
+const PAGE_SIZE = 100;
+
 export function IngestionReview() {
   const { csrfToken } = useSession();
   const [runs, setRuns] = useState<RunView[]>([]);
   const [items, setItems] = useState<RawItemView[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [tab, setTab] = useState<string>("PENDING_REVIEW");
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [conflictOnly, setConflictOnly] = useState(false);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [batchReason, setBatchReason] = useState("");
+  const [batchBusy, setBatchBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [stats, setStats] = useState<ReviewStatsView | null>(null);
+  const [current, setCurrent] = useState<RawItemView | null>(null);
+  const [currentBusy, setCurrentBusy] = useState(false);
+  const currentReason = current ? (reasons[current.id] ?? "") : "";
+
+  const currentRef = useRef<RawItemView | null>(null);
+  useEffect(() => {
+    currentRef.current = current;
+  }, [current]);
+
+  const loadStats = useCallback(async () => {
+    const res = await apiFetch<{ stats: ReviewStatsView }>("/api/admin/ingestion?view=stats");
+    if (res.ok && res.data) setStats(res.data.stats);
+  }, []);
+
+  const loadAndSetCurrent = useCallback(async () => {
+    setCurrentBusy(true);
+    try {
+      const conflict = conflictOnly ? "open" : "any";
+      const q = new URLSearchParams({
+        view: "next",
+        conflict,
+      });
+      if (appliedSearch) q.set("search", appliedSearch);
+      const res = await apiFetch<{ item: RawItemView | null }>(
+        `/api/admin/ingestion?${q.toString()}`,
+      );
+      if (res.ok && res.data) setCurrent(res.data.item);
+    } finally {
+      setCurrentBusy(false);
+    }
+  }, [conflictOnly, appliedSearch]);
 
   const load = useCallback(async () => {
+    const conflict = conflictOnly ? "open" : "any";
     const [runsRes, itemsRes] = await Promise.all([
       apiFetch<{ runs: RunView[] }>("/api/admin/ingestion?view=runs&limit=30"),
-      apiFetch<{ items: RawItemView[] }>(
-        `/api/admin/ingestion?view=items&status=${encodeURIComponent(tab)}&limit=200`,
+      apiFetch<{ items: RawItemView[]; total: number; page: number; pageSize: number }>(
+        `/api/admin/ingestion?view=items&status=${encodeURIComponent(tab)}&conflict=${conflict}&search=${encodeURIComponent(
+          appliedSearch,
+        )}&page=${page}&limit=${PAGE_SIZE}`,
       ),
     ]);
     if (runsRes.ok && runsRes.data) setRuns(runsRes.data.runs);
-    if (itemsRes.ok && itemsRes.data) setItems(itemsRes.data.items);
-    else setError(itemsRes.error ?? runsRes.error ?? "Could not load ingestion.");
-  }, [tab]);
+    if (itemsRes.ok && itemsRes.data) {
+      setItems(itemsRes.data.items);
+      setTotal(itemsRes.data.total);
+      const pending = new Set(
+        itemsRes.data.items.filter((i) => i.status === "PENDING_REVIEW").map((i) => i.id),
+      );
+      setSelected((prev) => {
+        const next: Record<string, boolean> = {};
+        for (const id of Object.keys(prev)) {
+          if (pending.has(id)) next[id] = true;
+        }
+        return next;
+      });
+    } else {
+      setError(itemsRes.error ?? runsRes.error ?? "Could not load ingestion.");
+    }
+  }, [tab, page, appliedSearch, conflictOnly]);
 
   useEffect(() => {
     let cancelled = false;
     void Promise.resolve().then(() => {
-      if (!cancelled) return load();
+      if (cancelled) return;
+      return Promise.all([load(), loadStats(), loadAndSetCurrent()]);
     });
     return () => {
       cancelled = true;
     };
-  }, [load]);
+  }, [load, loadStats, loadAndSetCurrent]);
+
+  function applySearch() {
+    setAppliedSearch(search.trim());
+    setPage(1);
+  }
+
+  function clearSearch() {
+    setSearch("");
+    setAppliedSearch("");
+    setPage(1);
+  }
+
+  function toggleConflict() {
+    setConflictOnly((v) => !v);
+    setPage(1);
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function selectPage() {
+    const pending = items.filter((i) => i.status === "PENDING_REVIEW").map((i) => i.id);
+    const allChecked = pending.length > 0 && pending.every((id) => selected[id]);
+    setSelected((prev) => {
+      const next: Record<string, boolean> = { ...prev };
+      for (const id of pending) {
+        if (allChecked) delete next[id];
+        else next[id] = true;
+      }
+      return next;
+    });
+  }
+
+  const selectedIds = Object.keys(selected).filter((id) => selected[id]);
+  const candidateCount = items.filter((i) => i.status === "PENDING_REVIEW").length;
 
   async function decide(item: RawItemView, decision: string) {
     setBusyId(item.id);
@@ -131,6 +244,84 @@ export function IngestionReview() {
     }
   }
 
+  async function runBatch(decision: string) {
+    setBatchBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await apiFetch<{ applied: number }>("/api/admin/ingestion/batch", {
+        method: "POST",
+        csrfToken,
+        body: { ids: selectedIds, decision, reason: batchReason },
+      });
+      if (!res.ok) {
+        setError(res.error ?? "Batch decision failed.");
+        return;
+      }
+      setNotice(`Batch ${decision}: ${res.data?.applied ?? selectedIds.length} item(s) updated.`);
+      setBatchReason("");
+      setSelected({});
+      await load();
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
+  async function decideCurrent(action: string) {
+    if (!current) return;
+    setBusyId(current.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await apiFetch(`/api/admin/ingestion/${current.id}/decision`, {
+        method: "POST",
+        csrfToken,
+        body: { decision: action, reason: reasons[current.id] ?? "" },
+      });
+      if (!res.ok) {
+        setError(res.error ?? "Decision failed.");
+        return;
+      }
+      setNotice(`Decision recorded: ${action}.`);
+      setCurrent(null);
+      await Promise.all([load(), loadStats(), loadAndSetCurrent()]);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function goNext() {
+    setError(null);
+    setNotice(null);
+    void loadAndSetCurrent();
+  }
+
+  // Safe keyboard shortcuts (Micro Chunk B): act on the focused "current"
+  // record only, never while typing in a field and never with a modifier key.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (isShortcutSuppressed(e)) return;
+      const action = shortcutForKey(e.key);
+      if (!action) return;
+      if (action === "NEXT") {
+        goNext();
+        return;
+      }
+      const cur = currentRef.current;
+      if (cur && cur.status === "PENDING_REVIEW") {
+        e.preventDefault();
+        void decideCurrent(action);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const progress = stats
+    ? reviewProgress(stats.reviewed, stats.total)
+    : { decided: 0, total: 0, remaining: 0, percent: 0 };
+
   return (
     <div className="flex flex-col gap-6">
       {error ? (
@@ -143,6 +334,123 @@ export function IngestionReview() {
           {notice}
         </p>
       ) : null}
+
+      {/* Reviewer-speed: progress + counters (real queue data, Micro Chunk B) */}
+      {stats ? (
+        <section className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Review progress</h2>
+            <span className="text-xs text-muted-foreground">
+              {stats.reviewed} / {stats.total} reviewed · {progress.remaining} remaining
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-accent transition-all"
+              style={{ width: `${progress.percent}%` }}
+            />
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <span>
+              Pending review: <strong>{stats.pending}</strong>
+            </span>
+            <span>
+              Reviewed: <strong>{stats.reviewed}</strong>
+            </span>
+            <span>
+              Conflicts: <strong>{stats.openConflicts}</strong>
+            </span>
+            <span>
+              Total records: <strong>{stats.total}</strong>
+            </span>
+          </div>
+        </section>
+      ) : null}
+
+      {/* Focused single-record review with Save & Next (Micro Chunk B) */}
+      <section className="flex flex-col gap-2 rounded-lg border border-border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Current record</h2>
+          <button
+            onClick={goNext}
+            disabled={currentBusy}
+            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground disabled:opacity-50"
+          >
+            Next Pending
+          </button>
+        </div>
+
+        {currentBusy ? (
+          <p className="text-xs text-muted-foreground">Loading…</p>
+        ) : current ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge color={current.openConflicts > 0 ? "warning" : "default"}>
+                {current.name ?? current.entityId}
+              </Badge>
+              {current.openConflicts > 0 ? (
+                <Badge color="warning">Conflict ({current.openConflicts})</Badge>
+              ) : null}
+              <span className="text-xs text-muted-foreground">
+                {current.category ?? "uncategorised"}
+                {current.districtName ? ` · ${current.districtName}` : ""}
+                {current.locality ? ` · ${current.locality}` : ""}
+              </span>
+            </div>
+            <input
+              aria-label="Reason for the decision"
+              placeholder="Reason (optional)"
+              value={currentReason}
+              onChange={(e) => setReasons((prev) => ({ ...prev, [current.id]: e.target.value }))}
+              className="w-full max-w-md rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                disabled={busyId === current.id}
+                onClick={() => void decideCurrent("APPROVE")}
+                className="rounded-md bg-success px-3 py-1.5 text-sm font-medium text-success-foreground disabled:opacity-50"
+              >
+                Approve &amp; Next
+              </button>
+              <button
+                disabled={busyId === current.id}
+                onClick={() => void decideCurrent("REJECT")}
+                className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground disabled:opacity-50"
+              >
+                Reject &amp; Next
+              </button>
+              <button
+                disabled={busyId === current.id}
+                onClick={() => void decideCurrent("UNAVAILABLE")}
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+              >
+                Unavailable &amp; Next
+              </button>
+              {busyId === current.id ? (
+                <span role="status" className="text-xs text-muted-foreground">
+                  Saving…
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No pending review items.</p>
+        )}
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-2 text-xs text-muted-foreground">
+          <span className="font-medium">Keyboard shortcuts</span>
+          {SHORTCUT_HINTS.map((h) => (
+            <kbd
+              key={h.key}
+              className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono"
+            >
+              {h.key}
+            </kbd>
+          ))}
+          <span>Approve · Reject · Unavailable · Next</span>
+          <span className="italic">(ignored while typing or with Ctrl/Alt/Meta)</span>
+        </div>
+      </section>
 
       <section className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Recent runs</h2>
@@ -204,7 +512,11 @@ export function IngestionReview() {
             {STATUS_TABS.map((s) => (
               <button
                 key={s}
-                onClick={() => setTab(s)}
+                onClick={() => {
+                  setTab(s);
+                  setPage(1);
+                  setSelected({});
+                }}
                 className={
                   tab === s
                     ? "rounded-md bg-accent px-2 py-1 text-xs font-medium text-accent-foreground"
@@ -217,10 +529,74 @@ export function IngestionReview() {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <input
+            aria-label="Search candidates"
+            placeholder="Search name, id, locality, district…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") applySearch();
+            }}
+            className="w-64 rounded-md border border-border bg-background px-2 py-1 text-sm"
+          />
+          <button
+            onClick={applySearch}
+            className="rounded-md border border-border px-3 py-1 text-xs font-medium"
+          >
+            Search
+          </button>
+          {appliedSearch ? (
+            <button
+              onClick={clearSearch}
+              className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+            >
+              Clear „{appliedSearch}“
+            </button>
+          ) : null}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={conflictOnly}
+              onChange={toggleConflict}
+              className="accent-accent"
+            />
+            Conflicts only
+          </label>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>
+            {total} candidate{total === 1 ? "" : "s"} on this tab
+            {conflictOnly ? " (open conflicts)" : ""}
+          </span>
+          {total > PAGE_SIZE ? (
+            <div className="flex items-center gap-2">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-md border border-border px-2 py-1 font-medium disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <span>
+                Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+              </span>
+              <button
+                disabled={page * PAGE_SIZE >= total}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded-md border border-border px-2 py-1 font-medium disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          ) : null}
+        </div>
+
         <div className="divide-y divide-border rounded-lg border border-border">
           {items.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              No candidates with status {tab.replace(/_/g, " ").toLowerCase()}.
+              No candidates match this view.
             </p>
           ) : (
             items.map((item) => (
@@ -231,10 +607,60 @@ export function IngestionReview() {
                 busy={busyId === item.id}
                 reason={reasons[item.id] ?? ""}
                 onReasonChange={(value) => setReasons((prev) => ({ ...prev, [item.id]: value }))}
+                selectable={item.status === "PENDING_REVIEW"}
+                selected={Boolean(selected[item.id])}
+                onToggleSelected={() => toggleSelected(item.id)}
               />
             ))
           )}
         </div>
+
+        {candidateCount > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
+            <label className="flex items-center gap-1.5 text-xs font-medium">
+              <input
+                type="checkbox"
+                checked={candidateCount > 0 && selectedIds.length === candidateCount}
+                onChange={selectPage}
+                className="accent-accent"
+              />
+              Select this page ({selectedIds.length}/{candidateCount})
+            </label>
+            <input
+              aria-label="Shared reason for the batch"
+              placeholder="Batch reason (optional)"
+              value={batchReason}
+              onChange={(e) => setBatchReason(e.target.value)}
+              className="w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+            <button
+              disabled={batchBusy || selectedIds.length === 0}
+              onClick={() => void runBatch("APPROVE")}
+              className="rounded-md bg-success px-3 py-1.5 text-sm font-medium text-success-foreground disabled:opacity-50"
+            >
+              Approve selected
+            </button>
+            <button
+              disabled={batchBusy || selectedIds.length === 0}
+              onClick={() => void runBatch("REJECT")}
+              className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground disabled:opacity-50"
+            >
+              Reject selected
+            </button>
+            <button
+              disabled={batchBusy || selectedIds.length === 0}
+              onClick={() => void runBatch("UNAVAILABLE")}
+              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            >
+              Mark selected unavailable
+            </button>
+            {batchBusy ? (
+              <span role="status" className="text-xs text-muted-foreground">
+                Working… (all-or-nothing)
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </section>
     </div>
   );
@@ -246,12 +672,18 @@ function ItemCard({
   busy,
   reason,
   onReasonChange,
+  selectable,
+  selected,
+  onToggleSelected,
 }: {
   item: RawItemView;
   onDecide: (item: RawItemView, decision: string) => void;
   busy: boolean;
   reason: string;
   onReasonChange: (value: string) => void;
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelected: () => void;
 }) {
   const { csrfToken } = useSession();
   const [expanded, setExpanded] = useState(false);
@@ -279,6 +711,15 @@ function ItemCard({
   return (
     <div className="flex flex-col gap-3 px-4 py-4">
       <div className="flex flex-wrap items-center gap-2">
+        {selectable ? (
+          <input
+            type="checkbox"
+            aria-label={`Select ${item.name ?? item.id}`}
+            checked={selected}
+            onChange={onToggleSelected}
+            className="accent-accent"
+          />
+        ) : null}
         <Badge color={statusColor(item.status)}>{item.status.replace(/_/g, " ")}</Badge>
         {item.openConflicts > 0 ? (
           <Badge color="warning">Conflict ({item.openConflicts})</Badge>
@@ -387,10 +828,33 @@ function ItemCard({
           </button>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          Decided {item.status.toLowerCase()} · {item.reason ?? "no reason given"}
-        </p>
+        <div className="flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">
+            Decided {item.status.toLowerCase()} · {item.reason ?? "no reason given"}
+          </p>
+          {item.status === "UNAVAILABLE" ? (
+            <p className="text-xs text-muted-foreground">
+              Not publicly available — this record has not completed human verification.
+            </p>
+          ) : item.status === "REJECTED" ? (
+            <p className="text-xs text-muted-foreground">
+              Rejected — a reviewer decided this record should not be published.
+            </p>
+          ) : null}
+        </div>
       )}
+
+      {item.status !== "PENDING_REVIEW" ? (
+        item.reviewerId || item.decidedAt ? (
+          <p className="text-xs text-muted-foreground">
+            {item.reviewerId ? `Reviewed by: ${item.reviewerId}` : ""}
+            {item.reviewerId && item.decidedAt ? " · " : ""}
+            {item.decidedAt ? `Reviewed: ${fmtDate(item.decidedAt)}` : ""}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">Not reviewed yet</p>
+        )
+      ) : null}
     </div>
   );
 }
@@ -563,6 +1027,34 @@ function ItemDetailPanel({
             <span>Valid until: {fmtDate(detail.freshness.validityWindow.validUntil)}</span>
           ) : null}
         </div>
+      </section>
+
+      <section>
+        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Data completeness
+        </h3>
+        {(() => {
+          const completenessFields: Partial<Record<string, unknown>> = {
+            name: item.name,
+            category: item.category,
+            districtName: item.districtName,
+            locality: item.locality,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            referenceUrl: item.referenceUrl,
+            verifiedAt: detail.freshness.verifiedAt,
+            description: item.rawData ?? item.normalizedData,
+          };
+          const present = Object.values(completenessFields).filter(
+            (v) => v != null && v !== "" && !(typeof v === "string" && v.trim() === ""),
+          ).length;
+          const total = 8;
+          return (
+            <p className="text-xs text-muted-foreground">
+              Data completeness: {present}/{total}
+            </p>
+          );
+        })()}
       </section>
 
       {detail.conflicts.length > 0 ? (

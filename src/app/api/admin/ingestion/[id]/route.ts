@@ -12,11 +12,11 @@ export const runtime = "nodejs";
  * Full review envelope for one ingestion item (M3C): source-registry metadata,
  * audit trail, conflicting records with both sides' provenance, duplicates of
  * the same entity, freshness of the underlying source record, verification
- * trail, per-field changes. Requires REVIEW_VERIFICATIONS.
+ * trail, per-field changes. Requires MANAGE_INGESTION (ADMIN-only, Chunk 4).
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireApiUser(request, db, permissions.REVIEW_VERIFICATIONS);
+    await requireApiUser(request, db, permissions.MANAGE_INGESTION);
   } catch (err) {
     return toErrorResponse(err);
   }

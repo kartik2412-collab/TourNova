@@ -42,6 +42,7 @@ export const permissions = {
   // Authority & administration
   VIEW_ANALYTICS: "VIEW_ANALYTICS",
   REVIEW_VERIFICATIONS: "REVIEW_VERIFICATIONS",
+  MANAGE_INGESTION: "MANAGE_INGESTION",
   MANAGE_DESTINATIONS: "MANAGE_DESTINATIONS",
   MANAGE_DATA_SOURCES: "MANAGE_DATA_SOURCES",
   VERIFY_DATA: "VERIFY_DATA",
@@ -100,6 +101,7 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
     permissions.VERIFY_DATA,
     permissions.MANAGE_USERS,
     permissions.AUDIT_LOG,
+    permissions.MANAGE_INGESTION,
   ],
 };
 

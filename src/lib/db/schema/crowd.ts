@@ -45,10 +45,15 @@ export const crowdObservations = pgTable(
     locale: text("locale").notNull().default("en"),
     capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
     sourceRecordId: text("source_record_id"),
+    verificationStatus: text("verification_status").notNull().default("UNAVAILABLE"),
     isDemo: boolean("is_demo").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("crowd_obs_attraction_idx").on(table.attractionId, table.capturedAt)],
+  (table) => [
+    index("crowd_obs_attraction_idx").on(table.attractionId, table.capturedAt),
+    index("crowd_obs_status_idx").on(table.verificationStatus),
+  ],
 );
 
 /** Forecasts are model predictions — always labelled, never presented as live counts. */

@@ -5,6 +5,10 @@ import {
   createSourceSchema,
   verifySubmissionSchema,
   listSubmissionsSchema,
+  resolveConflictDecisionSchema,
+  listIngestionItemsSchema,
+  batchReviewIngestionItemsSchema,
+  MAX_BATCH_REVIEW_SIZE,
 } from "./validation";
 
 describe("signUpSchema", () => {
@@ -98,5 +102,120 @@ describe("listSubmissionsSchema", () => {
     const res = listSubmissionsSchema.safeParse({ limit: "25" });
     expect(res.success).toBe(true);
     if (res.success) expect(res.data.limit).toBe(25);
+  });
+});
+
+describe("resolveConflictDecisionSchema (canonical conflict-decisions)", () => {
+  it("accepts KEEP_A with an explicit accepted record id", () => {
+    const res = resolveConflictDecisionSchema.safeParse({
+      decision: "KEEP_A",
+      acceptedRecordId: "rec-a",
+    });
+    expect(res.success).toBe(true);
+    if (res.success && res.data.decision === "KEEP_A") {
+      expect(res.data.acceptedRecordId).toBe("rec-a");
+      expect(res.data.note).toBe("");
+    }
+  });
+
+  it("rejects KEEP_A without an accepted record id", () => {
+    const res = resolveConflictDecisionSchema.safeParse({ decision: "KEEP_A" });
+    expect(res.success).toBe(false);
+  });
+
+  it("accepts KEEP_B with an explicit accepted record id", () => {
+    const res = resolveConflictDecisionSchema.safeParse({
+      decision: "KEEP_B",
+      acceptedRecordId: "rec-b",
+      note: "B is correct",
+    });
+    expect(res.success).toBe(true);
+    if (res.success && res.data.decision === "KEEP_B") {
+      expect(res.data.acceptedRecordId).toBe("rec-b");
+      expect(res.data.note).toBe("B is correct");
+    }
+  });
+
+  it("accepts REJECT_BOTH with no accepted record id", () => {
+    const res = resolveConflictDecisionSchema.safeParse({ decision: "REJECT_BOTH" });
+    expect(res.success).toBe(true);
+    if (res.success) expect(res.data.decision).toBe("REJECT_BOTH");
+  });
+
+  it("recognises MERGE (unsupported at service level, but a valid decision label)", () => {
+    const res = resolveConflictDecisionSchema.safeParse({ decision: "MERGE" });
+    expect(res.success).toBe(true);
+  });
+
+  it("rejects an unknown decision", () => {
+    const res = resolveConflictDecisionSchema.safeParse({ decision: "ACCEPT_RECORD_A" });
+    expect(res.success).toBe(false);
+  });
+
+  it("rejects a malformed accepted record id", () => {
+    const res = resolveConflictDecisionSchema.safeParse({
+      decision: "KEEP_A",
+      acceptedRecordId: "  ",
+    });
+    expect(res.success).toBe(false);
+  });
+});
+
+describe("listIngestionItemsSchema (Chunk 4 queue)", () => {
+  it("defaults to page 1 / any conflict and accepts the new filters", () => {
+    const res = listIngestionItemsSchema.safeParse({
+      search: "fort",
+      entityType: "attraction",
+      sourceId: "src-1",
+      conflict: "open",
+      page: "3",
+      limit: "50",
+    });
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.page).toBe(3);
+      expect(res.data.limit).toBe(50);
+      expect(res.data.conflict).toBe("open");
+      expect(res.data.search).toBe("fort");
+    }
+  });
+
+  it("rejects an unknown conflict filter or malformed entityType", () => {
+    expect(listIngestionItemsSchema.safeParse({ conflict: "sometimes" }).success).toBe(false);
+    expect(listIngestionItemsSchema.safeParse({ entityType: "Attraction-WithDash" }).success).toBe(
+      false,
+    );
+    expect(listIngestionItemsSchema.safeParse({ page: 0 }).success).toBe(false);
+    expect(listIngestionItemsSchema.safeParse({ limit: 1000 }).success).toBe(false);
+  });
+});
+
+describe("batchReviewIngestionItemsSchema (Chunk 4 safe batch)", () => {
+  it("accepts up to MAX_BATCH_REVIEW_SIZE ids with a decision", () => {
+    const res = batchReviewIngestionItemsSchema.safeParse({
+      ids: Array.from({ length: MAX_BATCH_REVIEW_SIZE }, (_, i) => `id-${i}`),
+      decision: "APPROVE",
+      reason: "Reviewed from official feed.",
+    });
+    expect(res.success).toBe(true);
+    if (res.success) expect(res.data.decision).toBe("APPROVE");
+  });
+
+  it("rejects an empty batch, one over the ceiling, duplicate decisions and bad actions", () => {
+    expect(batchReviewIngestionItemsSchema.safeParse({ ids: [], decision: "REJECT" }).success).toBe(
+      false,
+    );
+    expect(
+      batchReviewIngestionItemsSchema.safeParse({
+        ids: Array.from({ length: MAX_BATCH_REVIEW_SIZE + 1 }, (_, i) => `id-${i}`),
+        decision: "APPROVE",
+      }).success,
+    ).toBe(false);
+    expect(
+      batchReviewIngestionItemsSchema.safeParse({ ids: ["a"], decision: "NONE" }).success,
+    ).toBe(false);
+    expect(
+      batchReviewIngestionItemsSchema.safeParse({ ids: ["a"], decision: "PUBLISH" }).success,
+    ).toBe(false);
   });
 });

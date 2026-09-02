@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { MapPin, ShieldCheck, Clock, ExternalLink, TriangleAlert } from "lucide-react";
 import { db } from "@/lib/db";
 import { getVerifiedDestination } from "@/lib/catalog/discover";
 import { freshnessBadge } from "@/lib/catalog/freshness-badge";
 import { DataTrustNotice } from "@/components/shared/data-trust-notice";
 import { Card } from "@/components/ui/card";
+import {
+  VerificationStatus,
+  FreshnessLabel,
+  CompletenessIndicator,
+} from "@/components/trust/trust-indicators";
+import { DestinationImage } from "@/components/visual/destination-image";
+import { getPilotImage } from "@/lib/catalog/pilot-images";
 
 export const dynamic = "force-dynamic";
 
@@ -20,41 +28,90 @@ export default async function DestinationDetailPage({
   const title = destination.name ?? destination.entityId;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-12 sm:px-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wider text-accent">Discover</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{title}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {destination.category ? (
-            <span className="rounded-full bg-muted px-2 py-0.5">{destination.category}</span>
-          ) : null}
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6">
+      {/* Hero */}
+      <div className="overflow-hidden rounded-2xl border border-border">
+        <DestinationImage
+          entityId={destination.entityId}
+          category={destination.category}
+          name={title}
+          className="h-52 w-full sm:h-72"
+        />
+        {getPilotImage(destination.entityId) ? (
+          <div className="bg-muted/60 px-4 py-2 text-right text-[11px] leading-tight text-muted-foreground">
+            Photo: {getPilotImage(destination.entityId)!.attribution} ·{" "}
+            {getPilotImage(destination.entityId)!.license} · via{" "}
+            {getPilotImage(destination.entityId)!.source}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Title + meta */}
+      <div className="px-1">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 font-medium text-primary">
+            {destination.category ?? "Uncategorised"}
+          </span>
           {destination.districtName ? (
-            <span className="rounded-full bg-muted px-2 py-0.5">{destination.districtName}</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5">
+              <MapPin className="h-3 w-3" aria-hidden="true" />
+              {destination.districtName}
+            </span>
           ) : null}
-          {destination.locality ? <span>· {destination.locality}</span> : null}
-          <span className={`ml-1 ${freshnessBadge(destination.freshness)}`}>
-            Freshness: {destination.freshness}
+          {destination.locality ? (
+            <span className="rounded-full bg-muted px-2.5 py-0.5">{destination.locality}</span>
+          ) : null}
+        </div>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <VerificationStatus
+            status={
+              destination.conflicts.length > 0
+                ? "CONFLICT"
+                : destination.verifiedAt
+                  ? "VERIFIED"
+                  : "UNAVAILABLE"
+            }
+          />
+          <FreshnessLabel state={destination.freshness} verifiedAt={destination.verifiedAt} />
+          <span
+            className={`inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs ${freshnessBadge(
+              destination.freshness,
+            )}`}
+          >
+            <Clock className="h-3 w-3" aria-hidden="true" />
+            {destination.freshness}
           </span>
         </div>
       </div>
 
+      {/* Description */}
       {destination.description ? (
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          {destination.description}
-        </p>
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Overview
+          </h2>
+          <p className="mt-2 text-base leading-relaxed text-foreground">
+            {destination.description}
+          </p>
+        </div>
       ) : (
         <DataTrustNotice message="Reliable data unavailable. The source did not provide a description for this destination, and TourNova does not write invented copy." />
       )}
 
+      {/* Conflict warning */}
       {destination.conflicts.length > 0 ? (
-        <Card className="p-4">
-          <h2 className="text-sm font-semibold text-warning">Open contradiction between sources</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
+        <Card className="border-warning/30 bg-warning/5 p-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-warning">
+            <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+            Open contradiction between sources
+          </h2>
+          <p className="mt-1.5 text-xs text-muted-foreground">
             Two official sources disagree about this destination. The values are shown side-by-side
             until a reviewer resolves the conflict — we never silently pick one.
           </p>
           {destination.conflicts.map((c, i) => (
-            <div key={i} className="mt-2 flex flex-col gap-1 rounded-md bg-muted/40 p-2 text-xs">
+            <div key={i} className="mt-2 flex flex-col gap-1 rounded-lg bg-muted/40 p-2.5 text-xs">
               <span>Source A: {c.valueA ?? "—"}</span>
               <span>Source B: {c.valueB ?? "—"}</span>
             </div>
@@ -62,14 +119,18 @@ export default async function DestinationDetailPage({
         </Card>
       ) : null}
 
+      {/* Quick info + provenance */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card className="p-4">
-          <h2 className="text-sm font-semibold">Location</h2>
+        <Card className="p-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <MapPin className="h-4 w-4 text-accent" aria-hidden="true" />
+            Location
+          </h2>
           {destination.coordinates.length > 0 ? (
-            <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+            <ul className="mt-3 space-y-2.5 text-sm text-muted-foreground">
               {destination.coordinates.map((c, i) => (
                 <li key={i} className="space-y-0.5">
-                  <p className="text-foreground">
+                  <p className="font-medium text-foreground">
                     {c.placeName ?? destination.name ?? destination.entityId}
                   </p>
                   <p className="font-mono text-xs">
@@ -80,18 +141,29 @@ export default async function DestinationDetailPage({
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs italic text-muted-foreground">
-              No approved coordinate yet. TourNova does not guess positions.
-            </p>
+            <div className="mt-3 flex items-start gap-2 text-xs italic text-muted-foreground">
+              <ShieldCheck
+                className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span>No approved coordinate yet. TourNova does not guess positions.</span>
+            </div>
           )}
-          <a href="/map" className="mt-3 inline-block text-xs text-accent underline">
-            View on the map →
+          <a
+            href="/map"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2"
+          >
+            View on the map
+            <span aria-hidden="true">→</span>
           </a>
         </Card>
 
-        <Card className="p-4">
-          <h2 className="text-sm font-semibold">Provenance</h2>
-          <dl className="mt-2 space-y-1.5 text-sm">
+        <Card className="p-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />
+            Provenance
+          </h2>
+          <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between gap-2">
               <dt className="text-muted-foreground">Source</dt>
               <dd className="text-right font-medium">{destination.source.name}</dd>
@@ -119,7 +191,12 @@ export default async function DestinationDetailPage({
                   {destination.verifiedAt.toISOString().slice(0, 10)}
                 </dd>
               </div>
-            ) : null}
+            ) : (
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">Verified</dt>
+                <dd className="text-right text-xs text-muted-foreground">Not yet verified</dd>
+              </div>
+            )}
             <div className="flex justify-between gap-2">
               <dt className="text-muted-foreground">Collected</dt>
               <dd className="text-right font-medium">
@@ -132,13 +209,31 @@ export default async function DestinationDetailPage({
               href={destination.referenceUrl}
               target="_blank"
               rel="noreferrer"
-              className="mt-3 inline-block break-all text-xs text-accent underline"
+              className="mt-3 inline-flex max-w-full items-center gap-1 break-all text-xs font-medium text-primary underline underline-offset-2"
             >
-              {destination.referenceUrl} ↗
+              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+              View source ({destination.referenceUrl.replace(/^https?:\/\//, "").slice(0, 48)}) ↗
             </a>
           ) : null}
         </Card>
       </div>
+
+      {/* Completeness */}
+      <Card className="p-5">
+        <CompletenessIndicator
+          fields={{
+            name: destination.name,
+            description: destination.description,
+            districtName: destination.districtName,
+            locality: destination.locality,
+            category: destination.category,
+            referenceUrl: destination.referenceUrl,
+            latitude: destination.coordinates[0]?.latitude,
+            longitude: destination.coordinates[0]?.longitude,
+            verifiedAt: destination.verifiedAt,
+          }}
+        />
+      </Card>
     </div>
   );
 }

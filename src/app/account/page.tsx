@@ -84,6 +84,18 @@ export default async function AccountPage() {
               </p>
             </Link>
           ) : null}
+          {roleHasPermission(role, permissions.MANAGE_INGESTION) ? (
+            <Link
+              href="/admin/ingestion"
+              className="rounded-lg border border-border bg-card p-6 shadow-sm transition-colors hover:bg-muted"
+            >
+              <p className="text-sm font-semibold uppercase tracking-wide text-accent">Admin</p>
+              <h2 className="mt-1 text-lg font-semibold">Ingestion review queue</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Review and decide staged ingestion candidates, singly or in all-or-nothing batches.
+              </p>
+            </Link>
+          ) : null}
         </section>
       ) : null}
 

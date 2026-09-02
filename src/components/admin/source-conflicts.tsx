@@ -19,7 +19,13 @@ interface ConflictRow {
   createdAt: string;
 }
 
-const RESOLUTIONS = ["ACCEPT_RECORD_A", "ACCEPT_RECORD_B", "REJECT_BOTH"] as const;
+const RESOLUTIONS = ["KEEP_A", "KEEP_B", "REJECT_BOTH"] as const;
+
+const RESOLUTION_LABELS: Record<string, string> = {
+  KEEP_A: "keep source A",
+  KEEP_B: "keep source B",
+  REJECT_BOTH: "reject both",
+};
 
 export function SourceConflicts() {
   const { csrfToken } = useSession();
@@ -48,14 +54,20 @@ export function SourceConflicts() {
     };
   }, [load]);
 
-  async function resolve(conflict: ConflictRow, resolution: string) {
+  async function resolve(conflict: ConflictRow, decision: string) {
     setBusy(true);
     setError(null);
     try {
+      const body: Record<string, unknown> = {
+        decision,
+        note: "Resolved from the source registry.",
+      };
+      if (decision === "KEEP_A") body.acceptedRecordId = conflict.recordAId;
+      if (decision === "KEEP_B") body.acceptedRecordId = conflict.recordBId;
       const res = await apiFetch(`/api/admin/source-conflicts/${conflict.id}/resolve`, {
         method: "POST",
         csrfToken,
-        body: { resolution, note: "Resolved from the source registry." },
+        body,
       });
       if (!res.ok) {
         setError(res.error ?? "Could not resolve conflict.");
@@ -116,7 +128,7 @@ export function SourceConflicts() {
                   </option>
                   {RESOLUTIONS.map((r) => (
                     <option key={r} value={r}>
-                      {r.replace(/_/g, " ")}
+                      {RESOLUTION_LABELS[r]}
                     </option>
                   ))}
                 </select>

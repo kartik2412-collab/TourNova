@@ -18,7 +18,7 @@ export default async function AdminIngestionPage() {
   const token = jar.get(SESSION_COOKIE)?.value ?? null;
   const ctx = token ? await getCurrentSession(db, token) : null;
   if (!ctx) redirect("/signin");
-  if (!roleHasPermission(ctx.user.role, permissions.REVIEW_VERIFICATIONS)) redirect("/");
+  if (!roleHasPermission(ctx.user.role, permissions.MANAGE_INGESTION)) redirect("/");
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-12 sm:px-6">
@@ -28,7 +28,8 @@ export default async function AdminIngestionPage() {
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Candidates fetched by the sourced ingestion pipeline land here as PENDING_REVIEW with
           their source, collected time and per-field diff. Every decision is made by a human;
-          nothing gets trusted merely because it came from a website.
+          nothing gets trusted merely because it came from a website. Batch decisions are
+          all-or-nothing — if any item fails, nothing changes.
         </p>
       </div>
       <IngestionReview />

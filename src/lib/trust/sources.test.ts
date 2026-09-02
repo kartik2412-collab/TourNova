@@ -8,9 +8,12 @@ import {
   dataSources,
   sourceRecords,
   sourceConflicts,
+  dataSubmissions,
   auditLogs,
   sourceConflictStatusEnum,
   sourceConflictResolutionEnum,
+  sourceConflictDecisionEnum,
+  workflowStatusEnum,
   ingestionStatusEnum,
   type IngestionStatus,
 } from "@/lib/db/schema";
@@ -24,6 +27,7 @@ import {
   recordSourceCheck,
   flagSourceConflict,
   resolveSourceConflict,
+  toStoredConflictResolution,
   SourceError,
 } from "@/lib/trust/sources";
 import { AuthorizationError } from "@/lib/auth/permissions";
@@ -85,6 +89,25 @@ async function pair() {
   const a = await makeRecord(db, s1.id, "price", "entry-fee-temple", "100 INR");
   const b = await makeRecord(db, s2.id, "price", "entry-fee-temple", "150 INR");
   return { s1, s2, a, b };
+}
+
+async function makeSubmission(
+  database: Database,
+  sourceRecordId: string,
+  status: string = workflowStatusEnum.PENDING_VERIFICATION,
+) {
+  const [row] = await database
+    .insert(dataSubmissions)
+    .values({
+      id: randomUUID(),
+      sourceRecordId,
+      targetType: "price",
+      targetId: "entry-fee-temple",
+      payload: "candidate",
+      workflowStatus: status,
+    })
+    .returning();
+  return row;
 }
 
 async function sourceRow(id: string) {
@@ -508,7 +531,61 @@ describe("source conflicts", () => {
     expect(openRows).toHaveLength(1);
   });
 
-  it("resolves an OPEN conflict with a decision and the reviewer id", async () => {
+  it("maps canonical conflict-decisions to the stored vocabulary", () => {
+    expect(toStoredConflictResolution({ decision: "KEEP_A", acceptedRecordId: "x" })).toBe(
+      sourceConflictResolutionEnum.ACCEPT_RECORD_A,
+    );
+    expect(toStoredConflictResolution({ decision: "KEEP_B", acceptedRecordId: "x" })).toBe(
+      sourceConflictResolutionEnum.ACCEPT_RECORD_B,
+    );
+    expect(toStoredConflictResolution({ decision: "REJECT_BOTH" })).toBe(
+      sourceConflictResolutionEnum.REJECT_BOTH,
+    );
+    expect(() => toStoredConflictResolution({ decision: "MERGE" })).toThrow(SourceError);
+  });
+
+  it("KEEP_A resolves the conflict and records the accepted record explicitly", async () => {
+    const { a, b } = await pair();
+    const subA = await makeSubmission(db, a.id, workflowStatusEnum.PENDING_VERIFICATION);
+    const subB = await makeSubmission(db, b.id, workflowStatusEnum.PENDING_VERIFICATION);
+    const conflict = await flagSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      entityType: "price",
+      entityId: "entry-fee-temple",
+      recordAId: a.id,
+      recordBId: b.id,
+    });
+    await resolveSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      conflictId: conflict.id,
+      resolution: { decision: sourceConflictDecisionEnum.KEEP_A, acceptedRecordId: a.id },
+      note: "A reflects the gazetted rate",
+    });
+    const row = await db.select().from(sourceConflicts).where(eq(sourceConflicts.id, conflict.id));
+    expect(row[0]!.status).toBe(sourceConflictStatusEnum.RESOLVED);
+    expect(row[0]!.resolution).toBe(sourceConflictResolutionEnum.ACCEPT_RECORD_A);
+    expect(row[0]!.acceptedRecordId).toBe(a.id);
+    expect(row[0]!.resolvedById).toBe(admin.id);
+    expect(row[0]!.resolvedAt).not.toBeNull();
+
+    // Both original records are preserved.
+    expect(await db.select().from(sourceRecords).where(eq(sourceRecords.id, a.id))).toHaveLength(1);
+    expect(await db.select().from(sourceRecords).where(eq(sourceRecords.id, b.id))).toHaveLength(1);
+
+    // The accepted side stays eligible; the rejected side is retired.
+    const [sa] = await db
+      .select({ status: dataSubmissions.workflowStatus })
+      .from(dataSubmissions)
+      .where(eq(dataSubmissions.id, subA.id));
+    const [sb] = await db
+      .select({ status: dataSubmissions.workflowStatus })
+      .from(dataSubmissions)
+      .where(eq(dataSubmissions.id, subB.id));
+    expect(sa!.status).toBe(workflowStatusEnum.PENDING_VERIFICATION);
+    expect(sb!.status).toBe(workflowStatusEnum.REJECTED);
+  });
+
+  it("KEEP_B resolves the conflict and records the accepted record explicitly", async () => {
     const { a, b } = await pair();
     const conflict = await flagSourceConflict(db, {
       actor: { id: admin.id, role: "ADMIN" as const },
@@ -520,14 +597,73 @@ describe("source conflicts", () => {
     await resolveSourceConflict(db, {
       actor: { id: admin.id, role: "ADMIN" as const },
       conflictId: conflict.id,
-      resolution: sourceConflictResolutionEnum.ACCEPT_RECORD_A,
-      note: "A reflects the gazetted rate",
+      resolution: { decision: sourceConflictDecisionEnum.KEEP_B, acceptedRecordId: b.id },
+      note: "B is the verified figure",
     });
     const row = await db.select().from(sourceConflicts).where(eq(sourceConflicts.id, conflict.id));
     expect(row[0]!.status).toBe(sourceConflictStatusEnum.RESOLVED);
-    expect(row[0]!.resolution).toBe(sourceConflictResolutionEnum.ACCEPT_RECORD_A);
+    expect(row[0]!.resolution).toBe(sourceConflictResolutionEnum.ACCEPT_RECORD_B);
+    expect(row[0]!.acceptedRecordId).toBe(b.id);
     expect(row[0]!.resolvedById).toBe(admin.id);
-    expect(row[0]!.resolvedAt).not.toBeNull();
+  });
+
+  it("REJECT_BOTH resolves the conflict without accepting either record", async () => {
+    const { a, b } = await pair();
+    const subA = await makeSubmission(db, a.id, workflowStatusEnum.PENDING_VERIFICATION);
+    const subB = await makeSubmission(db, b.id, workflowStatusEnum.PENDING_VERIFICATION);
+    const conflict = await flagSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      entityType: "price",
+      entityId: "entry-fee-temple",
+      recordAId: a.id,
+      recordBId: b.id,
+    });
+    await resolveSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      conflictId: conflict.id,
+      resolution: { decision: sourceConflictDecisionEnum.REJECT_BOTH },
+      note: "Neither figure is supportable",
+    });
+    const row = await db.select().from(sourceConflicts).where(eq(sourceConflicts.id, conflict.id));
+    expect(row[0]!.status).toBe(sourceConflictStatusEnum.RESOLVED);
+    expect(row[0]!.resolution).toBe(sourceConflictResolutionEnum.REJECT_BOTH);
+    expect(row[0]!.acceptedRecordId).toBeNull();
+
+    // Both records stay in history but neither may be published.
+    const [sa] = await db
+      .select({ status: dataSubmissions.workflowStatus })
+      .from(dataSubmissions)
+      .where(eq(dataSubmissions.id, subA.id));
+    const [sb] = await db
+      .select({ status: dataSubmissions.workflowStatus })
+      .from(dataSubmissions)
+      .where(eq(dataSubmissions.id, subB.id));
+    expect(sa!.status).toBe(workflowStatusEnum.REJECTED);
+    expect(sb!.status).toBe(workflowStatusEnum.REJECTED);
+    expect(await db.select().from(sourceRecords).where(eq(sourceRecords.id, a.id))).toHaveLength(1);
+    expect(await db.select().from(sourceRecords).where(eq(sourceRecords.id, b.id))).toHaveLength(1);
+  });
+
+  it("rejects an accepted record that does not belong to the conflict", async () => {
+    const { a, b } = await pair();
+    const { a: other } = await pair();
+    const conflict = await flagSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      entityType: "price",
+      entityId: "entry-fee-temple",
+      recordAId: a.id,
+      recordBId: b.id,
+    });
+    await expect(
+      resolveSourceConflict(db, {
+        actor: { id: admin.id, role: "ADMIN" as const },
+        conflictId: conflict.id,
+        resolution: { decision: sourceConflictDecisionEnum.KEEP_A, acceptedRecordId: other.id },
+      }),
+    ).rejects.toThrow(SourceError);
+
+    const row = await db.select().from(sourceConflicts).where(eq(sourceConflicts.id, conflict.id));
+    expect(row[0]!.status).toBe(sourceConflictStatusEnum.OPEN);
   });
 
   it("rejects resolving an already-resolved conflict", async () => {
@@ -542,18 +678,28 @@ describe("source conflicts", () => {
     await resolveSourceConflict(db, {
       actor: { id: admin.id, role: "ADMIN" as const },
       conflictId: conflict.id,
-      resolution: sourceConflictResolutionEnum.ACCEPT_RECORD_A,
+      resolution: { decision: sourceConflictDecisionEnum.KEEP_A, acceptedRecordId: a.id },
     });
     await expect(
       resolveSourceConflict(db, {
         actor: { id: admin.id, role: "ADMIN" as const },
         conflictId: conflict.id,
-        resolution: sourceConflictResolutionEnum.REJECT_BOTH,
+        resolution: { decision: sourceConflictDecisionEnum.REJECT_BOTH },
       }),
-    ).rejects.toThrow(SourceError);
+    ).rejects.toThrow(/Only open conflicts/);
   });
 
-  it("rejects a NONE resolution", async () => {
+  it("rejects resolving a nonexistent conflict", async () => {
+    await expect(
+      resolveSourceConflict(db, {
+        actor: { id: admin.id, role: "ADMIN" as const },
+        conflictId: "does-not-exist",
+        resolution: { decision: sourceConflictDecisionEnum.REJECT_BOTH },
+      }),
+    ).rejects.toThrow(/Conflict not found/);
+  });
+
+  it("recognises MERGE but refuses it: no merge model exists", async () => {
     const { a, b } = await pair();
     const conflict = await flagSourceConflict(db, {
       actor: { id: admin.id, role: "ADMIN" as const },
@@ -566,13 +712,25 @@ describe("source conflicts", () => {
       resolveSourceConflict(db, {
         actor: { id: admin.id, role: "ADMIN" as const },
         conflictId: conflict.id,
-        resolution: sourceConflictResolutionEnum.NONE,
+        resolution: { decision: sourceConflictDecisionEnum.MERGE },
       }),
-    ).rejects.toThrow(SourceError);
+    ).rejects.toThrow(/MERGE is not supported/);
+
+    const row = await db.select().from(sourceConflicts).where(eq(sourceConflicts.id, conflict.id));
+    expect(row[0]!.status).toBe(sourceConflictStatusEnum.OPEN);
+    expect(row[0]!.resolution).toBe(sourceConflictResolutionEnum.NONE);
+    expect(row[0]!.acceptedRecordId).toBeNull();
   });
 
   it("blocks tourists from flagging or resolving conflicts", async () => {
     const { a, b } = await pair();
+    const conflict = await flagSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      entityType: "price",
+      entityId: "entry-fee-temple",
+      recordAId: a.id,
+      recordBId: b.id,
+    });
     await expect(
       flagSourceConflict(db, {
         actor: { id: tourist.id, role: "TOURIST" as const },
@@ -582,9 +740,55 @@ describe("source conflicts", () => {
         recordBId: b.id,
       }),
     ).rejects.toThrow(AuthorizationError);
+    await expect(
+      resolveSourceConflict(db, {
+        actor: { id: tourist.id, role: "TOURIST" as const },
+        conflictId: conflict.id,
+        resolution: { decision: sourceConflictDecisionEnum.REJECT_BOTH },
+      }),
+    ).rejects.toThrow(AuthorizationError);
+
+    const row = await db.select().from(sourceConflicts).where(eq(sourceConflicts.id, conflict.id));
+    expect(row[0]!.status).toBe(sourceConflictStatusEnum.OPEN);
   });
 
-  it("writes SOURCE_CONFLICT_FLAGGED and SOURCE_CONFLICT_RESOLVED audits", async () => {
+  it("writes canonical SOURCE_CONFLICT_RESOLVED audits (accepted / rejected_both)", async () => {
+    const { a, b } = await pair();
+    await makeSubmission(db, a.id, workflowStatusEnum.PENDING_VERIFICATION);
+    const conflict = await flagSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      entityType: "price",
+      entityId: "entry-fee-temple",
+      recordAId: a.id,
+      recordBId: b.id,
+    });
+    await resolveSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      conflictId: conflict.id,
+      resolution: { decision: sourceConflictDecisionEnum.KEEP_A, acceptedRecordId: a.id },
+    });
+    const conflictRows = await db
+      .select({ action: auditLogs.action, metadata: auditLogs.metadata })
+      .from(auditLogs)
+      .where(eq(auditLogs.entityId, conflict.id));
+    const actions = conflictRows.map((r) => r.action).sort();
+    expect(actions).toEqual([
+      auditActions.SOURCE_CONFLICT_FLAGGED,
+      auditActions.SOURCE_CONFLICT_RESOLVED,
+    ]);
+    const resolvedAudit = conflictRows.find(
+      (r) => r.action === auditActions.SOURCE_CONFLICT_RESOLVED,
+    );
+    const meta = JSON.parse(resolvedAudit!.metadata ?? "{}") as {
+      resolution?: string;
+      decision?: string;
+      accepted?: string;
+    };
+    expect(meta.resolution).toBe(`accepted:${a.id}`);
+    expect(meta.accepted).toBe(a.id);
+  });
+
+  it("writes rejected_both in the audit for REJECT_BOTH", async () => {
     const { a, b } = await pair();
     const conflict = await flagSourceConflict(db, {
       actor: { id: admin.id, role: "ADMIN" as const },
@@ -596,16 +800,67 @@ describe("source conflicts", () => {
     await resolveSourceConflict(db, {
       actor: { id: admin.id, role: "ADMIN" as const },
       conflictId: conflict.id,
-      resolution: sourceConflictResolutionEnum.ACCEPT_RECORD_B,
+      resolution: { decision: sourceConflictDecisionEnum.REJECT_BOTH },
     });
     const rows = await db
-      .select({ action: auditLogs.action })
+      .select({ metadata: auditLogs.metadata })
       .from(auditLogs)
-      .where(eq(auditLogs.entityId, conflict.id));
-    expect(rows.map((r) => r.action).sort()).toEqual([
-      auditActions.SOURCE_CONFLICT_FLAGGED,
-      auditActions.SOURCE_CONFLICT_RESOLVED,
-    ]);
+      .where(
+        and(
+          eq(auditLogs.entityId, conflict.id),
+          eq(auditLogs.action, auditActions.SOURCE_CONFLICT_RESOLVED),
+        ),
+      );
+    const meta = JSON.parse(rows[0]!.metadata ?? "{}") as { resolution?: string };
+    expect(meta.resolution).toBe("rejected_both");
+  });
+
+  it("lets the existing Rani Ki Vav / Rani - ki - vav conflict resolve safely as KEEP_A", async () => {
+    const { s1, s2 } = await pair();
+    const raniGujarat = await makeRecord(
+      db,
+      s1.id,
+      "destination",
+      "rani-ki-vav-patan",
+      JSON.stringify({
+        name: "Rani Ki Vav",
+        referenceUrl: "https://www.gujarattourism.com/north-zone/patan/rani-ki-vav.html",
+      }),
+    );
+    const raniAsi = await makeRecord(
+      db,
+      s2.id,
+      "destination",
+      "rani-ki-vav-patan",
+      JSON.stringify({ name: "Rani - ki - vav", locality: "Anavadapati" }),
+    );
+    const conflict = await flagSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      entityType: "destination",
+      entityId: "rani-ki-vav-patan",
+      recordAId: raniGujarat.id,
+      recordBId: raniAsi.id,
+      note: "Different values for the same monument reported by independent sources.",
+    });
+    expect(conflict.status).toBe(sourceConflictStatusEnum.OPEN);
+
+    await resolveSourceConflict(db, {
+      actor: { id: admin.id, role: "ADMIN" as const },
+      conflictId: conflict.id,
+      resolution: { decision: sourceConflictDecisionEnum.KEEP_A, acceptedRecordId: raniGujarat.id },
+      note: "Gujarat Tourism record carries the official reference URL.",
+    });
+
+    const row = await db.select().from(sourceConflicts).where(eq(sourceConflicts.id, conflict.id));
+    expect(row[0]!.status).toBe(sourceConflictStatusEnum.RESOLVED);
+    expect(row[0]!.resolution).toBe(sourceConflictResolutionEnum.ACCEPT_RECORD_A);
+    expect(row[0]!.acceptedRecordId).toBe(raniGujarat.id);
+    expect(
+      (await db.select().from(sourceRecords).where(eq(sourceRecords.id, raniGujarat.id))).length,
+    ).toBe(1);
+    expect(
+      (await db.select().from(sourceRecords).where(eq(sourceRecords.id, raniAsi.id))).length,
+    ).toBe(1);
   });
 
   it("lists open conflicts", async () => {

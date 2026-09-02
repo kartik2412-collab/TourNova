@@ -60,7 +60,7 @@ export const navModules: NavModule[] = [
     description: "Crowd levels at destinations.",
     href: "/crowd",
     icon: Users,
-    status: "coming-soon",
+    status: "live",
   },
   {
     title: "Nearby",

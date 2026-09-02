@@ -121,11 +121,35 @@ export const sourceConflictStatusEnum = {
   SUPERSEDED: "SUPERSEDED",
 } as const;
 
-/** How a source conflict was resolved. */
+/** How a source conflict was resolved (stored on `source_conflicts.resolution`). */
 export const sourceConflictResolutionEnum = {
   NONE: "NONE",
   ACCEPT_RECORD_A: "ACCEPT_RECORD_A",
   ACCEPT_RECORD_B: "ACCEPT_RECORD_B",
+  REJECT_BOTH: "REJECT_BOTH",
+} as const;
+
+/**
+ * CANONICAL conflict-decisions (Chunk 3).
+ *
+ * This is the ONE decision model used by every caller that resolves a conflict
+ * (validation schema → API route → service → admin UI → audit). Each value names
+ * the human decision explicitly:
+ *
+ *   KEEP_A      keep source A's record (record `recordAId` is accepted)
+ *   KEEP_B      keep source B's record (record `recordBId` is accepted)
+ *   REJECT_BOTH keep neither record; both stay in history but are not published
+ *   MERGE       recognised but deliberately UNSUPPORTED — the current conflict
+ *               schema has no safe, human-controlled merge model, so the service
+ *               rejects it with a clear error and it is never persisted.
+ *
+ * `sourceConflictResolutionEnum` above remains for backward-compatible STORAGE of
+ * already-written rows; `sourceConflictDecisionEnum` is what callers must send.
+ */
+export const sourceConflictDecisionEnum = {
+  KEEP_A: "KEEP_A",
+  KEEP_B: "KEEP_B",
+  MERGE: "MERGE",
   REJECT_BOTH: "REJECT_BOTH",
 } as const;
 
@@ -205,6 +229,8 @@ export type SourceConflictStatus =
   (typeof sourceConflictStatusEnum)[keyof typeof sourceConflictStatusEnum];
 export type SourceConflictResolution =
   (typeof sourceConflictResolutionEnum)[keyof typeof sourceConflictResolutionEnum];
+export type SourceConflictDecision =
+  (typeof sourceConflictDecisionEnum)[keyof typeof sourceConflictDecisionEnum];
 export type SourceClassification =
   (typeof sourceClassificationEnum)[keyof typeof sourceClassificationEnum];
 
@@ -385,6 +411,13 @@ export const sourceConflicts = pgTable(
     status: text("status").notNull().default(sourceConflictStatusEnum.OPEN),
     // Resolution choice once a reviewer closes the conflict.
     resolution: text("resolution").notNull().default(sourceConflictResolutionEnum.NONE),
+    // The ACTUAL source record the reviewer accepted (for KEEP_A/KEEP_B).
+    // NULL for REJECT_BOTH. Persisted explicitly so "what won" never has to be
+    // re-derived positionally from recordAId/recordBId, and so the rejected side
+    // can be kept out of publication by the existing workflow.
+    acceptedRecordId: text("accepted_record_id").references(() => sourceRecords.id, {
+      onDelete: "set null",
+    }),
     resolvedById: text("resolved_by_id").references(() => users.id, { onDelete: "set null" }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     resolutionNote: text("resolution_note"),
@@ -397,6 +430,7 @@ export const sourceConflicts = pgTable(
     index("source_conflicts_entity_idx").on(table.entityType, table.entityId),
     index("source_conflicts_status_idx").on(table.status),
     index("source_conflicts_records_idx").on(table.recordAId, table.recordBId),
+    index("source_conflicts_accepted_idx").on(table.acceptedRecordId),
   ],
 );
 

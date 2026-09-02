@@ -3,19 +3,20 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from "react";
 
 /**
  * Button / link-button primitives.
- * Kept dependency-free and accessible (real <button> / <a> elements).
+ * Enhanced with gradient, accent, and size options for premium feel.
  */
 
-type ButtonVariant = "primary" | "outline" | "ghost";
+type ButtonVariant = "primary" | "outline" | "ghost" | "accent";
 type ButtonSize = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 whitespace-nowrap";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-foreground hover:opacity-90",
-  outline: "border border-border bg-transparent hover:bg-muted",
+  primary: "bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm hover:shadow-md",
+  outline: "border-2 border-border bg-transparent hover:bg-muted hover:border-primary/30",
   ghost: "bg-transparent hover:bg-muted",
+  accent: "bg-accent text-accent-foreground hover:bg-accent-hover shadow-sm hover:shadow-md",
 };
 
 const sizes: Record<ButtonSize, string> = {

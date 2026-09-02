@@ -1,0 +1,2 @@
+ALTER TABLE "source_conflicts" ADD COLUMN "accepted_record_id" text REFERENCES "source_records"("id") ON DELETE SET NULL;--> statement-breakpoint
+CREATE INDEX "source_conflicts_accepted_idx" ON "source_conflicts" USING btree ("accepted_record_id");

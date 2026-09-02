@@ -1,9 +1,11 @@
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
   dataSources,
   sourceRecords,
   sourceConflicts,
+  dataSubmissions,
+  verifications,
   confidenceEnum,
   sourceClassificationEnum,
   sourceAccessMethodEnum,
@@ -12,8 +14,9 @@ import {
   ingestionStatusEnum,
   sourceConflictStatusEnum,
   sourceConflictResolutionEnum,
+  sourceConflictDecisionEnum,
+  workflowStatusEnum,
   type IngestionStatus,
-  type SourceConflictResolution,
 } from "@/lib/db/schema";
 import type { Database } from "@/lib/db";
 import { requirePermission, type Role } from "@/lib/auth/permissions";
@@ -509,49 +512,191 @@ export async function flagSourceConflict(
   });
 }
 
+/**
+ * CANONICAL conflict-decisions (Chunk 3).
+ *
+ * Every caller resolves a conflict through this one union. KEEP_A / KEEP_B carry
+ * the accepted record id explicitly so the human's choice is always recorded;
+ * REJECT_BOTH keeps neither; MERGE is recognised but unsupported by the current
+ * conflict data model (rejected below, never persisted).
+ */
+export type ConflictDecision =
+  | { decision: typeof sourceConflictDecisionEnum.KEEP_A; acceptedRecordId: string }
+  | { decision: typeof sourceConflictDecisionEnum.KEEP_B; acceptedRecordId: string }
+  | { decision: typeof sourceConflictDecisionEnum.REJECT_BOTH }
+  | { decision: typeof sourceConflictDecisionEnum.MERGE };
+
+/**
+ * Map a canonical decision to the value persisted on `source_conflicts.resolution`
+ * (the legacy storage vocabulary). MERGE is never persisted.
+ */
+export function toStoredConflictResolution(decision: ConflictDecision): string {
+  switch (decision.decision) {
+    case sourceConflictDecisionEnum.KEEP_A:
+      return sourceConflictResolutionEnum.ACCEPT_RECORD_A;
+    case sourceConflictDecisionEnum.KEEP_B:
+      return sourceConflictResolutionEnum.ACCEPT_RECORD_B;
+    case sourceConflictDecisionEnum.REJECT_BOTH:
+      return sourceConflictResolutionEnum.REJECT_BOTH;
+    case sourceConflictDecisionEnum.MERGE:
+      throw new SourceError("MERGE is not supported by the conflict data model.");
+  }
+}
+
+/**
+ * Submission statuses that still allow a record to move toward PUBLISHED. On
+ * resolution, submissions backed by the rejected record(s) in these states are
+ * retired (REJECTED) so only the accepted record remains eligible.
+ */
+const PUBLISHABLE_SUBMISSION_STATUSES = [
+  workflowStatusEnum.SUBMITTED,
+  workflowStatusEnum.VALIDATING,
+  workflowStatusEnum.PENDING_VERIFICATION,
+  workflowStatusEnum.VERIFIED,
+  workflowStatusEnum.CONFLICT,
+] as const;
+
+/**
+ * Resolve an OPEN conflict with an explicit human decision.
+ *
+ *   KEEP_A / KEEP_B — both original source records are preserved; the accepted
+ *     record id is recorded on the conflict; candidate submissions backed by the
+ *     NON-accepted record are retired through the normal workflow so only the
+ *     accepted record can go on to be APPROVED → PUBLISHED.
+ *   REJECT_BOTH     — neither record becomes published; active submissions of
+ *     both records are retired; the records themselves stay for auditability.
+ *   MERGE           — rejected with a clear error: the current schema has no
+ *     safe, human-controlled merge model.
+ *
+ * ADMIN-only (MANAGE_DATA_SOURCES). Writes a canonical audit entry.
+ */
 export async function resolveSourceConflict(
   db: Database,
   input: {
     actor: { id: string; role: Role | string };
     conflictId: string;
-    resolution: SourceConflictResolution;
+    resolution: ConflictDecision;
     note?: string | null;
     ipAddress?: string | null;
   },
 ): Promise<void> {
   requirePermission(input.actor.role, "MANAGE_DATA_SOURCES");
-  if (input.resolution === sourceConflictResolutionEnum.NONE) {
-    throw new SourceError("Resolution must pick A, B, or reject both.");
-  }
 
   const [current] = await db
-    .select({ status: sourceConflicts.status })
+    .select()
     .from(sourceConflicts)
     .where(eq(sourceConflicts.id, input.conflictId))
     .limit(1);
-  if (!current) throw new AuthError("Conflict not found.");
+  if (!current) throw new SourceError("Conflict not found.");
   if (current.status !== sourceConflictStatusEnum.OPEN) {
-    throw new SourceError("Only open conflicts can be resolved.");
+    throw new SourceError(
+      `Only open conflicts can be resolved (current status: ${current.status}).`,
+    );
   }
 
-  await db
-    .update(sourceConflicts)
-    .set({
-      status: sourceConflictStatusEnum.RESOLVED,
-      resolution: input.resolution,
-      resolvedById: input.actor.id,
-      resolvedAt: new Date(),
-      resolutionNote: input.note?.trim() || null,
-    })
-    .where(eq(sourceConflicts.id, input.conflictId));
+  const decision = input.resolution;
+  if (decision.decision === sourceConflictDecisionEnum.MERGE) {
+    throw new SourceError(
+      "MERGE is not supported: the conflict data model has no safe, human-controlled merge operation. Choose KEEP_A, KEEP_B, or REJECT_BOTH.",
+    );
+  }
 
-  await writeAudit(db, {
-    userId: input.actor.id,
-    action: auditActions.SOURCE_CONFLICT_RESOLVED,
-    entityType: "source_conflict",
-    entityId: input.conflictId,
-    metadata: { resolution: input.resolution },
-    ipAddress: input.ipAddress,
+  let acceptedRecordId: string | null = null;
+  if (decision.decision === sourceConflictDecisionEnum.KEEP_A) {
+    if (decision.acceptedRecordId !== current.recordAId) {
+      throw new SourceError(
+        "acceptedRecordId must be the record chosen by the decision (record A for KEEP_A).",
+      );
+    }
+    acceptedRecordId = current.recordAId;
+  } else if (decision.decision === sourceConflictDecisionEnum.KEEP_B) {
+    if (decision.acceptedRecordId !== current.recordBId) {
+      throw new SourceError(
+        "acceptedRecordId must be the record chosen by the decision (record B for KEEP_B).",
+      );
+    }
+    acceptedRecordId = current.recordBId;
+  }
+
+  const storedResolution = toStoredConflictResolution(decision);
+  const rejectedRecordIds =
+    decision.decision === sourceConflictDecisionEnum.REJECT_BOTH
+      ? [current.recordAId, current.recordBId]
+      : decision.decision === sourceConflictDecisionEnum.KEEP_A
+        ? [current.recordBId]
+        : [current.recordAId];
+
+  await db.transaction(async (tx) => {
+    const txDb = tx as unknown as Database;
+
+    await txDb
+      .update(sourceConflicts)
+      .set({
+        status: sourceConflictStatusEnum.RESOLVED,
+        resolution: storedResolution,
+        acceptedRecordId,
+        resolvedById: input.actor.id,
+        resolvedAt: new Date(),
+        resolutionNote: input.note?.trim() || null,
+      })
+      .where(eq(sourceConflicts.id, current.id));
+
+    // Retire candidate submissions backed by the rejected record(s) so only the
+    // accepted record (or none, for REJECT_BOTH) can reach the publication gate.
+    const rejectedSubmissions = await txDb
+      .select()
+      .from(dataSubmissions)
+      .where(
+        and(
+          inArray(dataSubmissions.sourceRecordId, rejectedRecordIds),
+          inArray(dataSubmissions.workflowStatus, PUBLISHABLE_SUBMISSION_STATUSES),
+        ),
+      );
+    for (const sub of rejectedSubmissions) {
+      await txDb
+        .update(dataSubmissions)
+        .set({
+          workflowStatus: workflowStatusEnum.REJECTED,
+          reason: `Rejected by conflict resolution ${current.id}.`,
+          updatedAt: new Date(),
+        })
+        .where(eq(dataSubmissions.id, sub.id));
+      await txDb.insert(verifications).values({
+        id: randomUUID(),
+        sourceRecordId: sub.sourceRecordId,
+        submissionId: sub.id,
+        verifiedById: input.actor.id,
+        decision: "REJECT",
+        verificationStatus: "REJECTED",
+        confidence: "UNKNOWN",
+        note: `Rejected by conflict resolution ${current.id}.`,
+        lastVerifiedAt: new Date(),
+      });
+      await writeAudit(txDb, {
+        userId: input.actor.id,
+        action: auditActions.SUBMISSION_DECISION,
+        entityType: "data_submission",
+        entityId: sub.id,
+        metadata: { decision: "REJECT", resolution: current.id },
+        ipAddress: input.ipAddress,
+      });
+    }
+
+    await writeAudit(txDb, {
+      userId: input.actor.id,
+      action: auditActions.SOURCE_CONFLICT_RESOLVED,
+      entityType: "source_conflict",
+      entityId: current.id,
+      metadata:
+        decision.decision === sourceConflictDecisionEnum.REJECT_BOTH
+          ? { resolution: "rejected_both", decision: decision.decision }
+          : {
+              resolution: `accepted:${acceptedRecordId ?? ""}`,
+              decision: decision.decision,
+              accepted: acceptedRecordId,
+            },
+      ipAddress: input.ipAddress,
+    });
   });
 }
 

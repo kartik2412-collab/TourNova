@@ -48,10 +48,10 @@ export function SignUpForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-lg border border-border bg-card p-6 shadow-sm"
+      className="rounded-2xl border border-border bg-card p-6 shadow-card"
       noValidate
     >
-      <h1 className="text-xl font-semibold tracking-tight">Create your account</h1>
+      <h1 className="text-xl font-bold tracking-tight">Create your account</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Every account starts as a traveller. Roles such as Business, Authority or Admin are granted
         only by an administrator.

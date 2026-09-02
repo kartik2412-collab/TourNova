@@ -10,6 +10,7 @@ import {
   logSecurityEvent,
 } from "@/lib/auth/guards";
 import { permissions, type Role } from "@/lib/auth/permissions";
+import { apiLimiter } from "@/lib/auth/rate-limit";
 import { decideIngestionItemSchema } from "@/lib/validation";
 import { decideItem } from "@/lib/ingest/review";
 import { TrustError } from "@/lib/trust/workflow";
@@ -18,15 +19,23 @@ export const runtime = "nodejs";
 
 /**
  * POST /api/admin/ingestion/:id/decision
- * Review decision on one PENDING_REVIEW ingestion item.
- * decision: APPROVE | REJECT | UNAVAILABLE. Requires REVIEW_VERIFICATIONS + CSRF.
- * Applies the decision through the existing trust workflow (submission review),
- * which writes verifications + audit, then mirrors it onto the ingestion item.
+ * Single review decision on one PENDING_REVIEW ingestion item.
+ * decision: APPROVE | REJECT | UNAVAILABLE. Requires MANAGE_INGESTION (ADMIN-
+ * only, Chunk 4) + CSRF + per-IP throttle. Approving an item whose source
+ * record is part of an OPEN source conflict is blocked until the conflict is
+ * resolved. Applies the decision through the existing trust workflow
+ * (submission review), which writes verifications + audit, then mirrors it
+ * onto the ingestion item.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const limited = apiLimiter.check(`ingest-decision:${clientIp(request)}`);
+  if (!limited.allowed) {
+    return jsonError(429, "Too many attempts. Please try again later.");
+  }
+
   let ctx;
   try {
-    ctx = await requireApiUser(request, db, permissions.REVIEW_VERIFICATIONS);
+    ctx = await requireApiUser(request, db, permissions.MANAGE_INGESTION);
   } catch (err) {
     return toErrorResponse(err);
   }

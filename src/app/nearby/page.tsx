@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { Navigation } from "lucide-react";
 import { db } from "@/lib/db";
 import { loadApprovedLocations } from "@/lib/catalog/map-data";
 import { formatKm, haversineMeters } from "@/lib/geo/distance";
 import { DataTrustNotice } from "@/components/shared/data-trust-notice";
 import { EmptyState } from "@/components/shared/states";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/shared/page-header";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -46,28 +48,26 @@ export default async function NearbyPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-12 sm:px-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wider text-accent">Explore</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Nearby</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Verified destinations within a chosen radius of a place you pick. Distances are computed
-          only from approved coordinates — never guessed positions.
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
+      <PageHeader
+        eyebrow="Explore"
+        title="Nearby"
+        description="Verified destinations within a chosen radius of a place you pick. Distances are computed only from approved coordinates — never guessed positions."
+        icon={<Navigation className="h-5 w-5" aria-hidden="true" />}
+      />
 
       <DataTrustNotice message="Hotels, restaurants, transport and emergency services have no approved coordinates yet, so “nearby” currently covers verified destinations only. The list populates as reviewers approve coordinates." />
 
       <form
         method="get"
-        className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-end"
+        className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-card sm:flex-row sm:items-end"
       >
-        <label className="flex flex-1 flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">From</span>
+        <label className="flex flex-1 flex-col gap-1.5 text-sm">
+          <span className="font-medium text-muted-foreground">From</span>
           <select
             name="from"
             defaultValue={origin?.entityId ?? ""}
-            className="h-10 rounded-md border border-border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">— Select a verified destination —</option>
             {locations.map((l) => (
@@ -78,12 +78,12 @@ export default async function NearbyPage({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">Radius</span>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-muted-foreground">Radius</span>
           <select
             name="radius"
             defaultValue={String(radiusKm)}
-            className="h-10 rounded-md border border-border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {RADII_KM.map((r) => (
               <option key={r} value={r}>
@@ -94,7 +94,7 @@ export default async function NearbyPage({
         </label>
         <button
           type="submit"
-          className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          className="h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
         >
           Search
         </button>
@@ -104,40 +104,50 @@ export default async function NearbyPage({
         <EmptyState
           title="No approved coordinates yet"
           description="Choose a place and distances will appear once reviewers approve coordinates for the verified destinations."
+          icon={<Navigation className="h-8 w-8 text-muted-foreground" aria-hidden="true" />}
         />
       ) : !origin ? (
         <EmptyState
           title="Choose a starting place"
           description="Select a verified destination above and a radius, then search. Distances are computed only from approved coordinates."
+          icon={<Navigation className="h-8 w-8 text-muted-foreground" aria-hidden="true" />}
         />
       ) : results.length === 0 ? (
         <EmptyState
           title={`Nothing within ${radiusKm} km`}
           description={`No other verified destinations are within ${radiusKm} km of ${origin.name} (straight-line, from approved coordinates).`}
+          icon={<Navigation className="h-8 w-8 text-muted-foreground" aria-hidden="true" />}
         />
       ) : (
-        <ul className="flex flex-col gap-2" role="list">
+        <ul className="flex flex-col gap-2.5" role="list">
           {results.map((r, i) => (
             <li key={r.entityId}>
-              <Card className="p-3">
+              <Card className="card-interactive p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-base font-medium">
-                      {i + 1}. {r.name}
+                    <p className="text-base font-semibold">
+                      <span className="mr-1.5 text-muted-foreground">{i + 1}.</span>
+                      <a
+                        href={`/discover/${encodeURIComponent(r.entityId)}`}
+                        className="hover:underline"
+                      >
+                        {r.name}
+                      </a>
                     </p>
                     {r.category ? (
-                      <p className="text-xs text-muted-foreground">{r.category}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{r.category}</p>
                     ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
                       {formatKm(r.distanceMeters)}
                     </span>
                     <a
                       href={`/discover/${encodeURIComponent(r.entityId)}`}
-                      className="text-xs text-accent underline"
+                      className="text-xs font-medium text-primary underline underline-offset-2"
                     >
-                      Details →
+                      Details
+                      <span aria-hidden="true"> →</span>
                     </a>
                   </div>
                 </div>

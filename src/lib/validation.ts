@@ -8,17 +8,18 @@ import {
   ingestionStatusEnum,
   updateFrequencyEnum,
   confidenceEnum,
-  sourceConflictResolutionEnum,
+  sourceConflictDecisionEnum,
   workflowStatusEnum,
   ingestionRunStatusEnum,
   ingestionItemStatusEnum,
   ingestionItemDecisionEnum,
   coordinateCandidateStatusEnum,
   coordinateCandidateSourceEnum,
+  priceCategoryEnum,
+  currencyEnum,
   type ReviewDecision,
   type WorkflowStatus,
   type IngestionStatus,
-  type SourceConflictResolution,
   type IngestionRunStatus,
   type IngestionItemStatus,
   type IngestionItemDecision,
@@ -117,15 +118,42 @@ export const flagSourceConflictSchema = z.object({
   note: z.string().trim().max(4000).optional(),
 });
 
-export const resolveSourceConflictSchema = z.object({
-  resolution: ENUM(
-    Object.values(sourceConflictResolutionEnum) as [
-      SourceConflictResolution,
-      ...SourceConflictResolution[],
-    ],
-  ),
-  note: z.string().trim().max(4000).optional().default(""),
-});
+/**
+ * CANONICAL conflict-decisions (Chunk 3).
+ *
+ * One discriminated union for every caller that resolves a conflict. Each
+ * supported decision explicitly names the human choice:
+ *
+ *   KEEP_A      — acceptedRecordId must be the conflict's recordA; only that
+ *                 record stays eligible for publication.
+ *   KEEP_B      — acceptedRecordId must be the conflict's recordB.
+ *   REJECT_BOTH — neither record becomes published; both stay for history.
+ *   MERGE       — recognised so the API answers precisely, but UNSUPPORTED by
+ *                 the current conflict data model; the service rejects it.
+ */
+export const resolveConflictDecisionSchema = z.discriminatedUnion("decision", [
+  z.object({
+    decision: z.literal(sourceConflictDecisionEnum.KEEP_A),
+    acceptedRecordId: z.string().trim().min(1).max(160),
+    note: z.string().trim().max(4000).optional().default(""),
+  }),
+  z.object({
+    decision: z.literal(sourceConflictDecisionEnum.KEEP_B),
+    acceptedRecordId: z.string().trim().min(1).max(160),
+    note: z.string().trim().max(4000).optional().default(""),
+  }),
+  z.object({
+    decision: z.literal(sourceConflictDecisionEnum.REJECT_BOTH),
+    note: z.string().trim().max(4000).optional().default(""),
+  }),
+  z.object({
+    decision: z.literal(sourceConflictDecisionEnum.MERGE),
+    note: z.string().trim().max(4000).optional().default(""),
+  }),
+]);
+
+/** Backward-compatible export name for the canonical conflict-decision schema. */
+export const resolveSourceConflictSchema = resolveConflictDecisionSchema;
 
 export const reviewDecisionSchema = ENUM(
   Object.values(reviewDecisionEnum) as [ReviewDecision, ...ReviewDecision[]],
@@ -176,11 +204,34 @@ export const listIngestionRunsSchema = z.object({
 export const listIngestionItemsSchema = z.object({
   status: ingestionItemStatusSchema.optional(),
   runId: z.string().trim().max(200).optional(),
+  sourceId: z.string().trim().max(200).optional(),
+  entityType: targetTypeSchema.optional(),
+  search: z.string().trim().max(200).optional(),
+  conflict: z.enum(["open", "none", "any"]).default("any"),
+  page: z.coerce.number().int().min(1).max(100_000).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });
 
+/** One review action applied to one ingestion item (batch or single decision). */
+export const reviewActionSchema = z.enum(["APPROVE", "REJECT", "UNAVAILABLE"]);
+
 export const decideIngestionItemSchema = z.object({
   decision: ingestionItemDecision,
+  reason: z.string().trim().max(4000).optional().default(""),
+  confidence: ENUM(Object.values(confidenceEnum) as [Confidence, ...Confidence[]]).optional(),
+});
+
+/** Hard ceiling for one batch review, enforced by both the API and the service. */
+export const MAX_BATCH_REVIEW_SIZE = 50 as const;
+
+/**
+ * Safe batch review (Chunk 4): zero-or-n → all item ids are decided with the
+ * SAME decision and reason, atomically (all-or-nothing). Everything returns to
+ * its prior state if any single item fails. Ceiling: MAX_BATCH_REVIEW_SIZE.
+ */
+export const batchReviewIngestionItemsSchema = z.object({
+  ids: z.array(z.string().trim().min(1).max(200)).min(1).max(MAX_BATCH_REVIEW_SIZE),
+  decision: reviewActionSchema,
   reason: z.string().trim().max(4000).optional().default(""),
   confidence: ENUM(Object.values(confidenceEnum) as [Confidence, ...Confidence[]]).optional(),
 });
@@ -225,4 +276,45 @@ export const listCoordinateCandidatesSchema = z.object({
   entityId: targetIdSchema.optional(),
   status: coordinateCandidateStatusSchema.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+
+// --- Price reports (Milestone 6 residual) -------------------------------------
+
+type PriceCategory = (typeof priceCategoryEnum)[keyof typeof priceCategoryEnum];
+type Currency = (typeof currencyEnum)[keyof typeof currencyEnum];
+
+export const submitPriceReportSchema = z.object({
+  targetType: targetTypeSchema.default("attraction"),
+  targetId: targetIdSchema,
+  category: ENUM(Object.values(priceCategoryEnum) as [PriceCategory, ...PriceCategory[]]).default(
+    priceCategoryEnum.OTHER,
+  ),
+  amount: z.coerce.number().finite().positive(),
+  currency: ENUM(Object.values(currencyEnum) as [Currency, ...Currency[]]).default(
+    currencyEnum.INR,
+  ),
+  description: z.string().trim().max(500).optional().default(""),
+  note: z.string().trim().max(1000).optional().default(""),
+});
+
+export const decidePriceReportSchema = z.object({
+  decision: z.enum(["APPROVE", "REJECT", "REOPEN", "UNAVAILABLE"]),
+  note: z.string().trim().max(2000).optional().default(""),
+});
+
+// --- Crowd reports (Milestone 7) ---------------------------------------------
+
+export const submitCrowdReportSchema = z.object({
+  targetType: targetTypeSchema.default("attraction"),
+  targetId: targetIdSchema,
+  crowdLevel: z.coerce.number().int().min(0).max(100).optional().nullable(),
+  count: z.coerce.number().int().min(0).optional().nullable(),
+  capacity: z.coerce.number().int().min(0).optional().nullable(),
+  description: z.string().trim().max(500).optional().default(""),
+  note: z.string().trim().max(1000).optional().default(""),
+});
+
+export const decideCrowdReportSchema = z.object({
+  decision: z.enum(["APPROVE", "REJECT", "REOPEN", "UNAVAILABLE"]),
+  note: z.string().trim().max(2000).optional().default(""),
 });
