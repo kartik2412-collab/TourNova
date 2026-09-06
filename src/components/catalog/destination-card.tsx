@@ -70,7 +70,7 @@ export function DestinationCard({ destination }: { destination: DestinationDetai
         )}
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-          <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="truncate">Verified</span>
           </span>

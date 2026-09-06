@@ -26,6 +26,7 @@ export default async function DestinationDetailPage({
   if (!destination) notFound();
 
   const title = destination.name ?? destination.entityId;
+  const pilot = getPilotImage(destination.entityId);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6">
@@ -35,13 +36,12 @@ export default async function DestinationDetailPage({
           entityId={destination.entityId}
           category={destination.category}
           name={title}
+          priority
           className="h-52 w-full sm:h-72"
         />
-        {getPilotImage(destination.entityId) ? (
+        {pilot?.license && pilot.attribution && pilot.source ? (
           <div className="bg-muted/60 px-4 py-2 text-right text-[11px] leading-tight text-muted-foreground">
-            Photo: {getPilotImage(destination.entityId)!.attribution} ·{" "}
-            {getPilotImage(destination.entityId)!.license} · via{" "}
-            {getPilotImage(destination.entityId)!.source}
+            Photo: {pilot.attribution} · {pilot.license} · via {pilot.source}
           </div>
         ) : null}
       </div>

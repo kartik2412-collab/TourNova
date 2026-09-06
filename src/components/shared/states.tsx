@@ -57,10 +57,13 @@ export function EmptyState({
 export function ErrorState({
   title = "Something went wrong",
   description = "An unexpected error occurred. Please try again.",
+  action,
   className = "",
 }: {
   title?: string;
   description?: string;
+  /** Optional retry/back action rendered beneath the message. */
+  action?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -70,6 +73,7 @@ export function ErrorState({
     >
       <h3 className="text-lg font-semibold text-destructive">{title}</h3>
       <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
+      {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
 }
@@ -104,7 +108,7 @@ export function ModuleCard({
           <span
             className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
               status === "Live"
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                 : "bg-muted text-muted-foreground"
             }`}
           >

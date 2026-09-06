@@ -171,6 +171,54 @@ export function DestinationMap({
     [maybeZoom],
   );
 
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const key = e.key;
+      if (key === "Escape") {
+        setSelected(null);
+        return;
+      }
+      const step = e.shiftKey ? 200 : 80;
+      switch (key) {
+        case "ArrowLeft":
+          maybePan(step, 0);
+          break;
+        case "ArrowRight":
+          maybePan(-step, 0);
+          break;
+        case "ArrowUp":
+          maybePan(0, step);
+          break;
+        case "ArrowDown":
+          maybePan(0, -step);
+          break;
+        case "+":
+        case "=":
+          maybeZoom(1);
+          break;
+        case "-":
+        case "_":
+          maybeZoom(-1);
+          break;
+        case "0":
+          setZoom(clamp(provider.defaultZoom, provider.minZoom, provider.maxZoom));
+          setCenter(provider.defaultCenter);
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+    },
+    [
+      maybePan,
+      maybeZoom,
+      provider.defaultZoom,
+      provider.minZoom,
+      provider.maxZoom,
+      provider.defaultCenter,
+    ],
+  );
+
   const clusters = useMemo<Cluster[]>(() => {
     const projected = points.map((p) => {
       const w = lonLatToWorld(p.longitude, p.latitude);
@@ -228,13 +276,21 @@ export function DestinationMap({
       ref={containerRef}
       role="application"
       aria-label="Interactive map of verified destinations"
+      aria-describedby="map-instructions"
+      aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown + - 0 Escape"
+      tabIndex={0}
       className="relative h-[60vh] min-h-[380px] w-full touch-none select-none overflow-hidden rounded-lg border border-border"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onWheel={onWheel}
+      onKeyDown={onKeyDown}
     >
+      <p id="map-instructions" className="sr-only">
+        Use the arrow keys to pan the map, + and — to zoom in and out, 0 to reset the view, and
+        Escape to close the selected destination details.
+      </p>
       {visibleTiles.map((t) => (
         // eslint-disable-next-line @next/next/no-img-element -- external raster tiles, loaded unoptimized by design
         <img

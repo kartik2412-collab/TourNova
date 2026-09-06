@@ -3,7 +3,8 @@
  * ========================================
  *
  * A small, explicit static mapping from approved pilot destination entityId to
- * a genuinely existing, correctly-licensed Wikimedia Commons photograph.
+ * a genuinely existing photograph (Wikimedia Commons, correctly-licensed — with
+ * the single user-supplied Somnath exception documented below).
  *
  * WHY a static mapping (not a DB migration): these images are *decorative
  * presentation* for the curated pilot set only. The verification pipeline
@@ -19,15 +20,32 @@
  * Files use `Special:FilePath` (the canonical, always-resolving Commons URL)
  * so we never embed volatile hash paths.
  *
+ * SOMMATH EXCEPTION: the entry for `shree-somnath-jyotirlinga-temple-gir-somnath`
+ * uses a user-supplied image (hosted on wallpaperflare.com) whose photographer
+ * and license are NOT established. That entry therefore carries a null license
+ * and null attribution on purpose — never a fabricated or assumed claim.
+ *
  * Only these pilot entityIds have images; every other destination renders the
  * honest "Image unavailable" placeholder.
  */
 
 export interface PilotImage {
   url: string;
-  source: string;
-  license: string;
-  attribution: string;
+  /**
+   * Where the image is hosted/obtained from. `null` when the actual source is
+   * not established — we never invent one.
+   */
+  source: string | null;
+  /**
+   * Licensing claim. `null` when the license is not established (e.g. a
+   * user-supplied image) — we never label unverified images as freely licensed.
+   */
+  license: string | null;
+  /**
+   * Photographer/author credit. `null` when the author is not established — we
+   * never fabricate an attribution.
+   */
+  attribution: string | null;
   altText: string;
 }
 
@@ -99,10 +117,10 @@ const PILOT_IMAGES: Record<string, PilotImage> = {
     altText: "Archaeological remains at Lothal, Gujarat",
   },
   "shree-somnath-jyotirlinga-temple-gir-somnath": {
-    url: filePath("Sujay Chatterjee at Somnath Temple, 2024.jpg"),
-    source: "Wikimedia Commons",
-    license: "CC0",
-    attribution: "Sujay2026",
+    url: "https://c4.wallpaperflare.com/wallpaper/70/158/561/religious-wallpaper-preview.jpg",
+    source: "wallpaperflare.com",
+    license: null,
+    attribution: null,
     altText: "The Somnath Temple in Gujarat",
   },
 };

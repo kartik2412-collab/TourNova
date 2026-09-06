@@ -28,6 +28,7 @@ export interface MapPageData {
 }
 
 export interface ApprovedLocation {
+  entityType: string;
   entityId: string;
   name: string;
   category: string | null;
@@ -72,6 +73,7 @@ export async function loadApprovedLocations(db: Database): Promise<ApprovedLocat
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({
+      entityType: r.entityType,
       entityId: r.entityId,
       name: r.itemName,
       category: r.itemCategory,
@@ -84,29 +86,7 @@ export async function loadApprovedLocations(db: Database): Promise<ApprovedLocat
 }
 
 export async function loadMapPageData(db: Database): Promise<MapPageData> {
-  const [candidates, counts, locations] = await Promise.all([
-    db
-      .select({
-        latitude: coordinateCandidates.latitude,
-        longitude: coordinateCandidates.longitude,
-        entityType: coordinateCandidates.entityType,
-        entityId: coordinateCandidates.entityId,
-        placeName: coordinateCandidates.placeName,
-        decidedAt: coordinateCandidates.decidedAt,
-        itemName: ingestionItems.name,
-        itemCategory: ingestionItems.category,
-      })
-      .from(coordinateCandidates)
-      .leftJoin(
-        ingestionItems,
-        and(
-          eq(coordinateCandidates.entityType, ingestionItems.entityType),
-          eq(coordinateCandidates.entityId, ingestionItems.entityId),
-          eq(ingestionItems.status, ingestionItemStatusEnum.APPROVED),
-        ),
-      )
-      .where(eq(coordinateCandidates.status, "APPROVED"))
-      .orderBy(desc(coordinateCandidates.decidedAt)),
+  const [counts, locations] = await Promise.all([
     db
       .select({ n: count() })
       .from(coordinateCandidates)
@@ -116,22 +96,14 @@ export async function loadMapPageData(db: Database): Promise<MapPageData> {
 
   // One pin per entity — the most recently approved candidate wins. Only
   // entities whose item is itself APPROVED for publication are shown.
-  const seen = new Set<string>();
-  const points: MapPoint[] = [];
-  for (const c of candidates) {
-    if (c.itemName === null) continue;
-    const key = `${c.entityType}:${c.entityId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    points.push({
-      id: key,
-      name: c.itemName ?? c.placeName ?? c.entityId,
-      category: c.itemCategory,
-      latitude: c.latitude,
-      longitude: c.longitude,
-      href: `/discover/${encodeURIComponent(c.entityId)}`,
-    });
-  }
+  const points: MapPoint[] = locations.map((l) => ({
+    id: `${l.entityType}:${l.entityId}`,
+    name: l.name,
+    category: l.category,
+    latitude: l.latitude,
+    longitude: l.longitude,
+    href: `/discover/${encodeURIComponent(l.entityId)}`,
+  }));
 
   return {
     points,

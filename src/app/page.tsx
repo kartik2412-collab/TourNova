@@ -149,7 +149,7 @@ export default async function Home() {
               Explore the map
             </Link>
           </div>
-          <p className="mt-2 text-sm text-white/70">
+          <p className="mt-2 text-sm text-white/80">
             Every destination card shows its source and freshness. No invented prices. No guessed
             coordinates.
           </p>
@@ -209,7 +209,7 @@ export default async function Home() {
                   <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 text-primary">
                     <m.icon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                     Live
                   </span>
                 </div>

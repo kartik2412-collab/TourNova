@@ -14,7 +14,7 @@ export function Card({ className = "", children, interactive = false, ...rest }:
   return (
     <div
       className={`rounded-xl border border-border bg-card p-6 text-card-foreground shadow-card ${
-        interactive ? "card-interactive cursor-pointer" : ""
+        interactive ? "card-interactive" : ""
       } ${className}`}
       {...rest}
     >
@@ -30,10 +30,10 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 
 const badgeColors: Record<NonNullable<BadgeProps["color"]>, string> = {
   default: "bg-primary/10 text-primary",
-  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  success: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   warning: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  destructive: "bg-red-500/10 text-red-600 dark:text-red-400",
-  info: "bg-sky-500/10 text-sky-600 dark:text-sky-300",
+  destructive: "bg-red-500/10 text-red-700 dark:text-red-400",
+  info: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
   muted: "bg-muted text-muted-foreground",
 };
 

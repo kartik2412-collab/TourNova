@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Menu, X, TentTree } from "lucide-react";
@@ -35,6 +35,15 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const { authenticated, user, refresh } = useSession();
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const canReview = user != null && roleHasPermission(user.role, permissions.REVIEW_VERIFICATIONS);
   const canAdmin = user != null && roleHasPermission(user.role, permissions.MANAGE_USERS);

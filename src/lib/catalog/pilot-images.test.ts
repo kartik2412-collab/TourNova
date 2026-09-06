@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { allPilotImages, getPilotImage } from "./pilot-images";
 
+const USER_SUPPLIED_SOMNATH_URL =
+  "https://c4.wallpaperflare.com/wallpaper/70/158/561/religious-wallpaper-preview.jpg";
+
 /**
  * PILOT IMAGES — trust-preserving presentation metadata.
  *
  * The curated image map is intentionally *decorative*: it is a small, explicit
  * static list of license-verified Wikimedia Commons photographs for the curated
- * pilot set. These tests guard the honesty contract: every entry carries real
- * attribution + an explicit license, every URL points at Wikimedia Commons, and
- * unknown entityIds (never-fabricated destinations) get `null` — so the UI
- * falls back to the honest "Image unavailable" placeholder.
+ * pilot set, plus one user-supplied Somnath image whose photographer/license
+ * are not established. These tests guard the honesty contract: verified entries
+ * carry real attribution + an explicit license and point at Wikimedia Commons,
+ * the user-supplied entry carries NO fabricated license/author, and unknown
+ * entityIds (never-fabricated destinations) get `null` — so the UI falls back
+ * to the honest "Image unavailable" placeholder.
  */
 
 describe("pilot-images", () => {
@@ -30,19 +35,29 @@ describe("pilot-images", () => {
     expect(mapped).toEqual([...approvedPilotEntityIds].sort());
   });
 
-  it("provides a terse, explicit and truthful attribution for every image", () => {
+  it("keeps honest metadata: real license + author for verified images, none fabricated for the user-supplied one", () => {
     for (const image of Object.values(allPilotImages())) {
+      expect(image.altText?.trim().length).toBeGreaterThan(0);
+    }
+    const somnath = getPilotImage("shree-somnath-jyotirlinga-temple-gir-somnath")!;
+    expect(somnath.license).toBeNull();
+    expect(somnath.attribution).toBeNull();
+    for (const image of Object.values(allPilotImages())) {
+      if (image === somnath) continue;
       expect(image.source).toBe("Wikimedia Commons");
       expect(image.license).toMatch(/^CC( BY|0| BY-SA)/);
       expect(image.attribution?.trim().length).toBeGreaterThan(0);
-      expect(image.altText?.trim().length).toBeGreaterThan(0);
     }
   });
 
-  it("points every image at Wikimedia Commons (no off-site or fabricated URLs)", () => {
-    for (const image of Object.values(allPilotImages())) {
-      expect(image.url.startsWith("https://commons.wikimedia.org/")).toBe(true);
-    }
+  it("uses the exact user-supplied URL for Somnath and Wikimedia Commons for every other image", () => {
+    const somnath = getPilotImage("shree-somnath-jyotirlinga-temple-gir-somnath")!;
+    expect(somnath.url).toBe(USER_SUPPLIED_SOMNATH_URL);
+    const offSiteUrls = Object.values(allPilotImages()).filter(
+      (image) => !image.url.startsWith("https://commons.wikimedia.org/"),
+    );
+    expect(offSiteUrls).toHaveLength(1);
+    expect(offSiteUrls[0].url).toBe(USER_SUPPLIED_SOMNATH_URL);
   });
 
   it("returns null for entityIds with no curated image so the UI is honest", () => {

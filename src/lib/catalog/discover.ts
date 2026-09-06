@@ -1,4 +1,5 @@
 import { and, asc, eq, ilike, or } from "drizzle-orm";
+import { cache } from "react";
 import {
   coordinateCandidates,
   dataSources,
@@ -195,7 +196,7 @@ export async function listDestinationFacets(db: Database): Promise<{
   return { categories, districts };
 }
 
-export async function getVerifiedDestination(
+export const getVerifiedDestination = cache(async function getVerifiedDestination(
   db: Database,
   entityId: string,
 ): Promise<DestinationDetail | null> {
@@ -253,4 +254,4 @@ export async function getVerifiedDestination(
   }));
   dest.conflicts = conflicts.map((c) => ({ valueA: c.valueA ?? null, valueB: c.valueB ?? null }));
   return dest;
-}
+});
