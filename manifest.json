@@ -1,0 +1,16 @@
+{
+  "name": "TourNova — Intelligent Tourism & Travel Intelligence",
+  "short_name": "TourNova",
+  "description": "Intelligent tourism and travel intelligence for India. Truthful, sourced destination, price and crowd information.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7f5",
+  "theme_color": "#0d6e63",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}

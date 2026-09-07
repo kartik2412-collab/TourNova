@@ -1,0 +1,35 @@
+1:"$Sreact.fragment"
+2:I[5014,["/TourNova/_next/static/chunks/2v6o411sr5xb7.js"],"default"]
+3:I[22016,["/TourNova/_next/static/chunks/2v6o411sr5xb7.js"],""]
+4:I[97367,["/TourNova/_next/static/chunks/2v6o411sr5xb7.js"],"OutletBoundary"]
+5:"$Sreact.suspense"
+9:I[97367,["/TourNova/_next/static/chunks/2v6o411sr5xb7.js"],"ViewportBoundary"]
+a:I[97367,["/TourNova/_next/static/chunks/2v6o411sr5xb7.js"],"MetadataBoundary"]
+8:X
+1a:X
+1a:C
+0:{"buildId":"LxVofCVSqOmlTGFYWswes","data":[{"rsc":["$","$1","c",{"children":[["$","div",null,{"className":"mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-12 sm:px-6","children":[["$","div",null,{"className":"overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/5 via-background to-accent/5 p-6 sm:p-8 ","children":["$","div",null,{"className":"flex flex-col gap-3","children":[["$","div",null,{"className":"flex items-center gap-2","children":[["$","span",null,{"className":"inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-accent/5 text-primary","children":["$","$L2",null,{"iconNode":[["path",{"d":"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z","key":"oel41y"}],["path",{"d":"m9 12 2 2 4-4","key":"dzmm74"}]],"className":"lucide-shield-check h-5 w-5","aria-hidden":"true"}]}],["$","p",null,{"className":"text-sm font-semibold uppercase tracking-wider text-accent","children":"Account"}]]}],["$","h1",null,{"className":"text-2xl font-bold tracking-tight sm:text-3xl","children":"Your account"}],["$","p",null,{"className":"max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base","children":"Manage your profile, sessions, and data contributions. Sign in required for full access."}],"$undefined"]}]}],["$","section",null,{"className":"rounded-lg border border-border bg-card p-6 shadow-sm","children":[["$","h2",null,{"className":"text-lg font-semibold tracking-tight","children":"Sign in required"}],["$","p",null,{"className":"mt-2 text-sm text-muted-foreground","children":"Account features require authentication. Run the project locally with PostgreSQL to create an account and access session management, data contributions, and role-based permissions."}],["$","$L3",null,{"href":"/signin","className":"mt-4 inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-hover","children":"Go to Sign In"}]]}],["$","section",null,{"className":"grid gap-4 sm:grid-cols-2","children":[["$","div",null,{"className":"rounded-lg border border-border bg-card p-6 shadow-sm","children":[["$","$L2",null,{"iconNode":[["rect",{"width":"20","height":"14","x":"2","y":"5","rx":"2","key":"ynyp8z"}],["line",{"x1":"2","x2":"22","y1":"10","y2":"10","key":"1b3vmo"}]],"className":"lucide-credit-card h-8 w-8 text-accent","aria-hidden":"true"}],["$","h3",null,{"className":"mt-3 text-base font-semibold","children":"Data Contributions"}],["$","p",null,{"className":"mt-1 text-sm text-muted-foreground","children":"Submit verified price and crowd reports. All submissions are reviewed before publishing."}]]}],["$","div",null,{"className":"rounded-lg border border-border bg-card p-6 shadow-sm","children":[["$","$L2",null,{"iconNode":[["path",{"d":"M3 3v16a2 2 0 0 0 2 2h16","key":"c24i48"}],["path",{"d":"M18 17V9","key":"2bz60n"}],["path",{"d":"M13 17V5","key":"1frdt8"}],["path",{"d":"M8 17v-3","key":"17ska0"}]],"className":"lucide-chart-column h-8 w-8 text-accent","aria-hidden":"true"}],["$","h3",null,{"className":"mt-3 text-base font-semibold","children":"Activity Tracking"}],["$","p",null,{"className":"mt-1 text-sm text-muted-foreground","children":"View your submission history, verification status, and contribution impact."}]]}]]}]]}],null,["$","$L4",null,{"children":["$","$5",null,{"name":"Next.MetadataOutlet","children":"$@6"}]}]]}],"isPartial":"$@7","staleTime":"$8","varyParams":null},{"rsc":["$","$1","h",{"children":[null,["$","$L9",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}],["$","meta","2",{"name":"theme-color","content":"#f7faf8","media":"(prefers-color-scheme: light)"}],["$","meta","3",{"name":"theme-color","content":"#0b1120","media":"(prefers-color-scheme: dark)"}]]}],["$","div",null,{"hidden":true,"children":["$","$La",null,{"children":["$","$5",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"Account · TourNova"}],["$","meta","1",{"name":"description","content":"TourNova is an intelligent tourism and travel intelligence platform for India. Truthful, sourced destination, price and crowd information."}],"$Lb","$Lc","$Ld","$Le","$Lf","$L10","$L11","$L12","$L13","$L14","$L15"]}]}]}],"$L16"]}],"isPartial":"$@17","staleTime":"$8","varyParams":null},{"rsc":"$L18","isPartial":"$@19","staleTime":"$8","varyParams":"$1a"}],"isUpgradeableISRFallback":false,"a":"$@1b","rootVaryParams":null,"needsRuntimeRequest":"$@1c"}
+1d:I[27201,["/TourNova/_next/static/chunks/2v6o411sr5xb7.js"],"IconMark"]
+1e:I[39756,["/TourNova/_next/static/chunks/2v6o411sr5xb7.js"],"default"]
+1f:I[37457,["/TourNova/_next/static/chunks/2v6o411sr5xb7.js"],"default"]
+6:null
+b:["$","meta","2",{"name":"application-name","content":"TourNova"}]
+c:["$","meta","3",{"property":"og:title","content":"TourNova — Intelligent Tourism & Travel Intelligence"}]
+d:["$","meta","4",{"property":"og:description","content":"Intelligent tourism and travel intelligence for India. Truthful, sourced destination, price and crowd information."}]
+e:["$","meta","5",{"property":"og:site_name","content":"TourNova"}]
+f:["$","meta","6",{"property":"og:locale","content":"en_IN"}]
+10:["$","meta","7",{"property":"og:type","content":"website"}]
+11:["$","meta","8",{"name":"twitter:card","content":"summary"}]
+12:["$","meta","9",{"name":"twitter:title","content":"TourNova — Intelligent Tourism & Travel Intelligence"}]
+13:["$","meta","10",{"name":"twitter:description","content":"Intelligent tourism and travel intelligence for India. Truthful, sourced destination, price and crowd information."}]
+14:["$","link","11",{"rel":"icon","href":"/TourNova/favicon.ico?favicon.2vob68tjqpejf.ico","sizes":"256x256","type":"image/x-icon"}]
+15:["$","$L1d","12",{}]
+16:["$","meta",null,{"name":"next-size-adjust","content":""}]
+18:["$","$1","c",{"children":[null,["$","$L1e",null,{"parallelRouterKey":"children","template":["$","$L1f",null,{}]}]]}]
+1c:true
+8:300
+8:C
+1b:0
+17:"$undefined"
+19:"$undefined"
+7:"$undefined"
