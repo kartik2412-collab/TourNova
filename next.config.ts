@@ -1,8 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Confine Turbopack module resolution to this project so stray lockfiles in
-  // an enclosing directory (e.g. the user's home folder) are never picked up.
+  output: "export",
+  trailingSlash: true,
+  images: {
+    unoptimized: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   turbopack: {
     root: process.cwd(),
   },

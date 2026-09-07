@@ -15,12 +15,32 @@ rewrite. Gujarat is a set of **data records**, not hardcoded architecture.
 
 ---
 
+## Live preview (GitHub Pages)
+
+A static **UI preview** of TourNova is deployed automatically to GitHub Pages on
+every push to `master`/`main`:
+
+**🌐 https://kartik2412-collab.github.io/TourNova/**
+
+> This preview is a **static export** for sharing the interface with the team.
+> The database-backed modules (Discover, Map, Nearby, FairPrice, Crowd, auth and
+> admin) show informative "preview" states because GitHub Pages has no server or
+> database. Run locally (`npm run dev`) or deploy to a hosting platform with
+> serverless functions + PostgreSQL to see live data.
+
+The deployment pipeline is `.github/workflows/deploy.yml`; the static build is
+`npm run build:static` (`scripts/build-static.mjs`).
+
+---
+
 ## Status
 
 This repository contains:
 
 - Next.js 16 (App Router) + TypeScript + Tailwind CSS application shell
-- Responsive, accessible navigation and placeholder pages for every module
+- Live, responsive public modules — Discover, Map, Nearby, FairPrice, Crowd —
+  plus review and admin surfaces; Plan, Emergency and AI Assistant remain
+  honest "coming soon" placeholders
 - PostgreSQL database schema (Drizzle ORM) covering geography, destinations,
   attractions, businesses, users/roles, data sources & provenance, prices,
   crowd, events, itineraries and user reports
@@ -31,11 +51,11 @@ This repository contains:
   conflict handling, data-source management and classification, freshness
   policy, and the review/admin UIs
 - Documentation, a structural seed for the Gujarat pilot, and unit tests
-  (50 tests, run against an in-memory Postgres)
+  (322 tests, run against an in-memory Postgres)
 
-Module pages (Discover, Map, Plan, FairPrice, Crowd, Nearby, Emergency, AI
-Assistant) are **not yet implemented**. They are marked "coming soon" and
-deliberately show **no fabricated data**.
+Discover, Map, Nearby, FairPrice and Crowd are live and show only
+human-verified records. Plan, Emergency and AI Assistant are still "coming
+soon" placeholders and deliberately show **no fabricated data**.
 
 ---
 
@@ -77,22 +97,24 @@ Never commit real secrets — only `.env.example` is versioned.
 
 ## Scripts
 
-| Command                   | Purpose                                      |
-| ------------------------- | -------------------------------------------- |
-| `npm run dev`             | Start the development server                 |
-| `npm run build`           | Production build                             |
-| `npm run start`           | Serve the production build                   |
-| `npm run lint`            | ESLint                                       |
-| `npm run typecheck`       | TypeScript check (`tsc --noEmit`)            |
-| `npm run format`          | Prettier write                               |
-| `npm run format:check`    | Prettier check                               |
-| `npm run db:generate`     | Generate a Drizzle migration from the schema |
-| `npm run db:migrate`      | Apply migrations                             |
-| `npm run db:push`         | Push schema directly (dev convenience)       |
-| `npm run db:studio`       | Open Drizzle Studio                          |
-| `npm run db:seed`         | Seed structural geography (Gujarat pilot)    |
-| `npm run db:create-admin` | Create/promote an ADMIN account              |
-| `npm test`                | Unit tests (in-memory Postgres, no server)   |
+| Command                          | Purpose                                      |
+| -------------------------------- | -------------------------------------------- |
+| `npm run dev`                    | Start the development server                 |
+| `npm run build`                  | Production build                             |
+| `npm run start`                  | Serve the production build                   |
+| `npm run lint`                   | ESLint                                       |
+| `npm run typecheck`              | TypeScript check (`tsc --noEmit`)            |
+| `npm run format`                 | Prettier write                               |
+| `npm run format:check`           | Prettier check                               |
+| `npm run db:generate`            | Generate a Drizzle migration from the schema |
+| `npm run db:migrate`             | Apply migrations                             |
+| `npm run db:push`                | Push schema directly (dev convenience)       |
+| `npm run db:studio`              | Open Drizzle Studio                          |
+| `npm run db:seed`                | Seed structural geography (Gujarat pilot)    |
+| `npm run db:create-admin`        | Create/promote an ADMIN account              |
+| `npm run ingest:gujarat-tourism` | Ingest the Gujarat Tourism source            |
+| `npm run ingest:asi:gujarat`     | Ingest the ASI Gujarat source                |
+| `npm test`                       | Unit tests (in-memory Postgres, no server)   |
 
 ---
 
@@ -104,7 +126,8 @@ tournova/
 ├── drizzle/                 # Generated SQL migrations
 ├── scripts/
 │   ├── seed.ts              # Structural geography seed (no fabricated facts)
-│   └── create-user.ts       # Admin bootstrap (existing accounts are promoted)
+│   ├── create-user.ts       # Admin bootstrap (existing accounts are promoted)
+│   └── ingest.ts            # Source importer (gujarat-tourism / asi-gujarat)
 ├── src/
 │   ├── app/                 # Next.js App Router
 │   │   ├── layout.tsx       # Shell: header, footer, metadata

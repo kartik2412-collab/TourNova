@@ -14,7 +14,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000");
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl,
   title: {
     default: "TourNova — Intelligent Tourism & Travel Intelligence",
     template: "%s · TourNova",
@@ -22,6 +25,20 @@ export const metadata: Metadata = {
   description:
     "TourNova is an intelligent tourism and travel intelligence platform for India. Truthful, sourced destination, price and crowd information.",
   applicationName: "TourNova",
+  openGraph: {
+    type: "website",
+    siteName: "TourNova",
+    locale: "en_IN",
+    title: "TourNova — Intelligent Tourism & Travel Intelligence",
+    description:
+      "Intelligent tourism and travel intelligence for India. Truthful, sourced destination, price and crowd information.",
+  },
+  twitter: {
+    card: "summary",
+    title: "TourNova — Intelligent Tourism & Travel Intelligence",
+    description:
+      "Intelligent tourism and travel intelligence for India. Truthful, sourced destination, price and crowd information.",
+  },
 };
 
 export const viewport: Viewport = {

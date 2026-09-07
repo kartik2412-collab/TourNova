@@ -19,9 +19,6 @@ import { navModules } from "@/lib/navigation";
 import { DataTrustNotice } from "@/components/shared/data-trust-notice";
 import { SectionHeading } from "@/components/ui/card";
 import { CategoryArt } from "@/components/visual/category-art";
-import { db } from "@/lib/db";
-import { listVerifiedDestinations } from "@/lib/catalog/discover";
-import { DestinationCard } from "@/components/catalog/destination-card";
 
 export const metadata: Metadata = {
   title: "TourNova",
@@ -100,10 +97,10 @@ const whyCards = [
 const pilotTagline =
   "Monuments, stepwells, wildlife and destinations with human-verified, officially-sourced facts. Only records that cleared human review appear here.";
 
-export default async function Home() {
+export default function Home() {
   const liveModules = navModules.filter((m) => m.status === "live");
   const comingSoon = navModules.filter((m) => m.status === "coming-soon");
-  const featured = (await listVerifiedDestinations(db, { limit: 6 })).slice(0, 6);
+  const featured: Array<{ entityId: string; name: string; district: string; category: string }> = [];
 
   return (
     <div>
@@ -240,13 +237,11 @@ export default async function Home() {
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/85 sm:text-base">
             {pilotTagline}
           </p>
-          {featured.length > 0 ? (
-            <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {featured.map((dest) => (
-                <DestinationCard key={dest.entityId} destination={dest} />
-              ))}
-            </div>
-          ) : null}
+          <div className="mt-8 rounded-xl border border-white/20 bg-white/10 p-6 text-center backdrop-blur">
+            <p className="text-sm text-white/80">
+              Database not connected in preview mode. Run locally with PostgreSQL to see live destination data.
+            </p>
+          </div>
           <div className="mt-8">
             <Link
               href="/discover?district="

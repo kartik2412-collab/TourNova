@@ -1,129 +1,52 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
-import { getCurrentSession, publicUser } from "@/lib/auth/auth-service";
-import { SESSION_COOKIE } from "@/lib/auth/session";
-import { roleHasPermission, permissions } from "@/lib/auth/permissions";
-import { SessionManager } from "@/components/account/session-manager";
-import { SignOutButton } from "@/components/auth/sign-out-button";
-import { Badge } from "@/components/ui/card";
+import { ShieldCheck, Users, CreditCard, BarChart3, Settings } from "lucide-react";
+import { PageHeader } from "@/components/shared/page-header";
 
-export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Account",
 };
 
-export default async function AccountPage() {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value ?? null;
-  const ctx = token ? await getCurrentSession(db, token) : null;
-  if (!ctx) redirect("/signin");
-
-  const { role } = ctx.user;
-
+export default function AccountPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-12 sm:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wider text-accent">Account</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {ctx.user.name || ctx.user.email}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{ctx.user.email}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge
-            color={
-              role === "ADMIN"
-                ? "destructive"
-                : role === "AUTHORITY"
-                  ? "info"
-                  : role === "BUSINESS"
-                    ? "warning"
-                    : "default"
-            }
-          >
-            {role}
-          </Badge>
-          <SignOutButton />
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Account"
+        title="Your account"
+        description="Manage your profile, sessions, and data contributions. Sign in required for full access."
+        icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+      />
 
       <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold tracking-tight">Trust &amp; data controls</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Any data you submit is labelled USER-REPORTED until a reviewer verifies it. You are
-          responsible for what you submit — it is never presented as verified simply because it came
-          from your account.
+        <h2 className="text-lg font-semibold tracking-tight">Sign in required</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Account features require authentication. Run the project locally with PostgreSQL to create
+          an account and access session management, data contributions, and role-based permissions.
         </p>
-      </section>
-
-      {roleHasPermission(role, permissions.REVIEW_VERIFICATIONS) ? (
-        <section className="grid gap-4 sm:grid-cols-2">
-          <Link
-            href="/review"
-            className="rounded-lg border border-border bg-card p-6 shadow-sm transition-colors hover:bg-muted"
-          >
-            <p className="text-sm font-semibold uppercase tracking-wide text-accent">Workflow</p>
-            <h2 className="mt-1 text-lg font-semibold">Verification queue</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Review user reports, approve or reject, resolve conflicts, publish.
-            </p>
-          </Link>
-          {roleHasPermission(role, permissions.MANAGE_DATA_SOURCES) ? (
-            <Link
-              href="/admin/sources"
-              className="rounded-lg border border-border bg-card p-6 shadow-sm transition-colors hover:bg-muted"
-            >
-              <p className="text-sm font-semibold uppercase tracking-wide text-accent">Admin</p>
-              <h2 className="mt-1 text-lg font-semibold">Source registry</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Register and confirm the classification of information sources.
-              </p>
-            </Link>
-          ) : null}
-          {roleHasPermission(role, permissions.MANAGE_INGESTION) ? (
-            <Link
-              href="/admin/ingestion"
-              className="rounded-lg border border-border bg-card p-6 shadow-sm transition-colors hover:bg-muted"
-            >
-              <p className="text-sm font-semibold uppercase tracking-wide text-accent">Admin</p>
-              <h2 className="mt-1 text-lg font-semibold">Ingestion review queue</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Review and decide staged ingestion candidates, singly or in all-or-nothing batches.
-              </p>
-            </Link>
-          ) : null}
-        </section>
-      ) : null}
-
-      {roleHasPermission(role, permissions.MANAGE_USERS) ? (
         <Link
-          href="/admin/users"
-          className="rounded-lg border border-border bg-card p-6 shadow-sm transition-colors hover:bg-muted"
+          href="/signin"
+          className="mt-4 inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
         >
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">Admin</p>
-          <h2 className="mt-1 text-lg font-semibold">User directory</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Grant roles and manage account activity.
-          </p>
+          Go to Sign In
         </Link>
-      ) : null}
-
-      <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold tracking-tight">Active sessions</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Devices currently signed in to this account. If you spot one you do not recognise, end it
-          immediately.
-        </p>
-        <div className="mt-4">
-          <SessionManager mode="list" />
-        </div>
       </section>
 
-      <p className="text-xs text-muted-foreground">Account id: {publicUser(ctx.user).id}</p>
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+          <CreditCard className="h-8 w-8 text-accent" aria-hidden="true" />
+          <h3 className="mt-3 text-base font-semibold">Data Contributions</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Submit verified price and crowd reports. All submissions are reviewed before publishing.
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+          <BarChart3 className="h-8 w-8 text-accent" aria-hidden="true" />
+          <h3 className="mt-3 text-base font-semibold">Activity Tracking</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            View your submission history, verification status, and contribution impact.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

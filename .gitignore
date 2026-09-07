@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# static export backup
+/.api-backup
+
 # production
 /build
 

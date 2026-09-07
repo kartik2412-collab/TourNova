@@ -137,7 +137,7 @@ const ATTENTION_META: Record<
     label: "Geo candidate",
     icon: MapPin,
     badge: "bg-sky-500/10 text-sky-600",
-    href: "/admin/sources",
+    href: "/admin/ingestion",
   },
 };
 
@@ -379,7 +379,7 @@ function OverviewTabs({
             icon={MapPin}
             label="Geo candidates"
             value={summary.pendingGeoCandidates}
-            href="/admin/sources"
+            href="/admin/ingestion"
           />
           <StatCard icon={CheckCircle2} label="Published" value={summary.publishedRecords} />
           <StatCard icon={XCircle} label="Unavailable" value={summary.unavailableRecords} />
